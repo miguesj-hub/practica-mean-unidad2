@@ -1,4 +1,4 @@
-const {Schema, model}=require('mongoose');
+import {Schema, model} from 'mongoose';
 const empleadoSchema=new Schema({
 
  nombre:{type:String, required:true},
@@ -9,4 +9,4 @@ const empleadoSchema=new Schema({
      timestamps:true,
  versionKey:false
 })
-module.exports=model("Empleado",empleadoSchema);
+export default model("Empleado",empleadoSchema);

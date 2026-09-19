@@ -1,6 +1,6 @@
 const empleadoController:any={};
 
-const Empleado=require('../models/empleado');
+import Empleado from '../models/empleado';
 
 empleadoController.getEmpleado=async(req,res)=>{
     const empleados=await Empleado.find();
@@ -20,7 +20,7 @@ empleadoController.updateEmpleado=async(req,res)=>{
 }
 empleadoController.deleteEmpleado=async(req,res)=>{
     const {id}=req.params;
-    await Empleado.findByIdAndRemove(id);
+    await Empleado.findByIdAndDelete(id);
     res.json({status:'Empleado eliminado'});
 }
-module.exports=empleadoController;
+export default empleadoController;

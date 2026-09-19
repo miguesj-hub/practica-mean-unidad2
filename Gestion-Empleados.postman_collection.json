@@ -1,0 +1,198 @@
+{
+  "info": {
+    "name": "Unidad 2 - Gestión de Empleados (Backend)",
+    "description": "Colección de endpoints del CRUD de empleados.\n\nRequisitos:\n1. MongoDB corriendo (docker: contenedor `mongo-p3` en el puerto 27017).\n2. Backend levantado con `cd backend && npm run dev`.\n\nNota sobre `baseUrl`: se usa `127.0.0.1` y no `localhost` a propósito. Si tienes otro proceso escuchando en `[::1]:3000`, éste secuestra `localhost` y las peticiones no llegan a la API.\n\nLa variable `empleadoId` se llena sola: tanto el POST válido como el GET de listado guardan el `_id` del último empleado, así que el PUT y el DELETE funcionan sin copiar nada a mano.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:3000/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "empleadoId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Listar empleados",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Responde 200', () => pm.response.to.have.status(200));",
+              "pm.test('Devuelve un arreglo', () => pm.expect(pm.response.json()).to.be.an('array'));",
+              "",
+              "const empleados = pm.response.json();",
+              "if (empleados.length > 0) {",
+              "    pm.collectionVariables.set('empleadoId', empleados[empleados.length - 1]._id);",
+              "    console.log('empleadoId =', pm.collectionVariables.get('empleadoId'));",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/empleados",
+          "host": ["{{baseUrl}}"],
+          "path": ["empleados"]
+        },
+        "description": "Devuelve todos los empleados almacenados. Guarda el `_id` del último en la variable `empleadoId`."
+      },
+      "response": []
+    },
+    {
+      "name": "Crear empleado (payload válido)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Responde 200', () => pm.response.to.have.status(200));",
+              "pm.test('Confirma el guardado', () => {",
+              "    pm.expect(pm.response.json().status).to.eql('Empleado guardado');",
+              "});",
+              "",
+              "// El POST no devuelve el _id, así que lo recuperamos del listado",
+              "pm.sendRequest(pm.variables.replaceIn('{{baseUrl}}/empleados'), (err, res) => {",
+              "    if (err) { return console.error(err); }",
+              "    const empleados = res.json();",
+              "    if (empleados.length > 0) {",
+              "        pm.collectionVariables.set('empleadoId', empleados[empleados.length - 1]._id);",
+              "        console.log('empleadoId =', pm.collectionVariables.get('empleadoId'));",
+              "    }",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"nombre\": \"Andrés Mendoza\",\n  \"cargo\": \"Arquitecto de Software\",\n  \"departamento\": \"Innovación\",\n  \"sueldo\": 4500\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/empleados",
+          "host": ["{{baseUrl}}"],
+          "path": ["empleados"]
+        },
+        "description": "Crea un empleado con datos correctos y deja su `_id` en `empleadoId`."
+      },
+      "response": []
+    },
+    {
+      "name": "Crear empleado (payload inválido - Reto 2)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Antes del Reto 2 este request NO falla: Mongoose acepta el sueldo negativo",
+              "// y el nombre de 2 caracteres. Una vez implementados los DTO con Zod,",
+              "// debe responder 400 con la lista de campos inválidos.",
+              "pm.test('El DTO rechaza el payload con 400', () => pm.response.to.have.status(400));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"nombre\": \"An\",\n  \"cargo\": \"Developer\",\n  \"departamento\": \"TI\",\n  \"sueldo\": -200\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/empleados",
+          "host": ["{{baseUrl}}"],
+          "path": ["empleados"]
+        },
+        "description": "Nombre demasiado corto y sueldo negativo. Hoy el servidor lo acepta (no hay validación); tras el Reto 2 debe responder 400 antes de llegar al controlador. El test de este request está escrito para fallar a propósito hasta que implementes Zod."
+      },
+      "response": []
+    },
+    {
+      "name": "Actualizar empleado",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Responde 200', () => pm.response.to.have.status(200));",
+              "pm.test('Confirma la actualización', () => {",
+              "    pm.expect(pm.response.json().status).to.eql('Empleado actualizado');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"sueldo\": 7000\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/empleados/{{empleadoId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["empleados", "{{empleadoId}}"]
+        },
+        "description": "Actualiza el empleado guardado en `empleadoId`. Corre antes el POST o el GET para poblar la variable."
+      },
+      "response": []
+    },
+    {
+      "name": "Eliminar empleado",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Responde 200', () => pm.response.to.have.status(200));",
+              "pm.test('Confirma la eliminación', () => {",
+              "    pm.expect(pm.response.json().status).to.eql('Empleado eliminado');",
+              "});",
+              "",
+              "pm.collectionVariables.set('empleadoId', '');"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/empleados/{{empleadoId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["empleados", "{{empleadoId}}"]
+        },
+        "description": "Elimina el empleado guardado en `empleadoId` y limpia la variable."
+      },
+      "response": []
+    }
+  ]
+}
