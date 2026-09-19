@@ -1,3 +1,4 @@
+import { isValidObjectId } from 'mongoose';
 import type {
   CreateEmployeeInput,
   Employee,
@@ -31,6 +32,12 @@ const toEntity = (doc: EmpleadoDocument): Employee => ({
 /**
  * Adaptador de persistencia: implementa el puerto `IEmployeeRepository`
  * usando Mongoose. Es la frontera donde termina el dominio y empieza el ODM.
+ *
+ * El guardia `isValidObjectId` vive aquí por diseño: que un identificador
+ * sea un ObjectId de 24 hexadecimales es una regla del motor, no del
+ * contrato HTTP. Traduciendo el id malformado a "no encontrado" se evita
+ * que un `CastError` escape como 500 y se mantiene al dominio ignorante
+ * del formato de llave primaria de Mongo.
  */
 export class MongooseEmployeeRepository implements IEmployeeRepository {
   async findAll(): Promise<Employee[]> {
@@ -39,6 +46,7 @@ export class MongooseEmployeeRepository implements IEmployeeRepository {
   }
 
   async findById(id: string): Promise<Employee | null> {
+    if (!isValidObjectId(id)) return null;
     const doc = await EmpleadoModel.findById(id).lean<EmpleadoDocument | null>();
     return doc ? toEntity(doc) : null;
   }
@@ -49,13 +57,15 @@ export class MongooseEmployeeRepository implements IEmployeeRepository {
   }
 
   async update(id: string, data: UpdateEmployeeInput): Promise<Employee | null> {
+    if (!isValidObjectId(id)) return null;
     const doc = await EmpleadoModel
-      .findByIdAndUpdate(id, data, { new: true })
+      .findByIdAndUpdate(id, data, { returnDocument: 'after' })
       .lean<EmpleadoDocument | null>();
     return doc ? toEntity(doc) : null;
   }
 
   async delete(id: string): Promise<boolean> {
+    if (!isValidObjectId(id)) return false;
     const doc = await EmpleadoModel.findByIdAndDelete(id).lean<EmpleadoDocument | null>();
     return doc !== null;
   }
