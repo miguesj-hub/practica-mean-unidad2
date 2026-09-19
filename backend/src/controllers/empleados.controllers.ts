@@ -1,26 +1,44 @@
-const empleadoController:any={};
+import type { Request, Response } from 'express';
+import type { IEmployeeRepository } from '../domain/employee.repository.js';
 
-import Empleado from '../models/empleado';
-
-empleadoController.getEmpleado=async(req,res)=>{
-    const empleados=await Empleado.find();
+/**
+ * Controlador de empleados.
+ *
+ * Depende del puerto `IEmployeeRepository`, nunca de Mongoose ni del modelo.
+ * No hay `import mongoose` en este archivo: removerlo es imposible porque
+ * nunca existió, y el sistema compila igual.
+ *
+ * Recibe el repositorio por inyección de dependencias (factory), de modo que
+ * el controlador es testeable con un repositorio falso en memoria.
+ */
+export const createEmpleadoController = (repository: IEmployeeRepository) => ({
+  /** Consulta completa. */
+  async getEmpleados(_req: Request, res: Response) {
+    const empleados = await repository.findAll();
     res.json(empleados);
-}
+  },
 
-empleadoController.addEmpleado=async(req,res)=>{
-    const empleado=new Empleado(req.body);
-    await empleado.save();
-    res.json({status:'Empleado guardado'});
-}
+  /** Consulta atómica por identificador único. */
+  async getEmpleadoById(req: Request<{ id: string }>, res: Response) {
+    const empleado = await repository.findById(req.params.id);
+    res.json(empleado);
+  },
 
-empleadoController.updateEmpleado=async(req,res)=>{
-    const {id}=req.params;
-    const empleado=await Empleado.findByIdAndUpdate(id,req.body);
-    res.json({status:'Empleado actualizado'});
-}
-empleadoController.deleteEmpleado=async(req,res)=>{
-    const {id}=req.params;
-    await Empleado.findByIdAndDelete(id);
-    res.json({status:'Empleado eliminado'});
-}
-export default empleadoController;
+  /** Registro. */
+  async addEmpleado(req: Request, res: Response) {
+    await repository.create(req.body);
+    res.json({ status: 'Empleado guardado' });
+  },
+
+  /** Actualización parcial o total. */
+  async updateEmpleado(req: Request<{ id: string }>, res: Response) {
+    await repository.update(req.params.id, req.body);
+    res.json({ status: 'Empleado actualizado' });
+  },
+
+  /** Eliminación. */
+  async deleteEmpleado(req: Request<{ id: string }>, res: Response) {
+    await repository.delete(req.params.id);
+    res.json({ status: 'Empleado eliminado' });
+  }
+});

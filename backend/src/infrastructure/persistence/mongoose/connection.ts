@@ -1,4 +1,4 @@
-// src/config/database.ts
+// Conexión al motor de persistencia. Detalle de infraestructura.
 import mongoose from 'mongoose';
 
 export const connectDatabase = async (): Promise<void> => {

@@ -1,10 +1,14 @@
-import express from 'express'; 
-const router=express.Router(); 
-import empleado from '../controllers/empleados.controllers'; 
+import { Router } from 'express';
+import { employeeRepository } from '../config/container.js';
+import { createEmpleadoController } from '../controllers/empleados.controllers.js';
 
-router.get('/empleados',empleado.getEmpleado); 
-router.post('/empleados', empleado.addEmpleado); 
-router.put('/empleados/:id', empleado.updateEmpleado); 
-router.delete('/empleados/:id', empleado.deleteEmpleado); 
+const router = Router();
+const empleado = createEmpleadoController(employeeRepository);
+
+router.get('/empleados', empleado.getEmpleados);
+router.get('/empleados/:id', empleado.getEmpleadoById);
+router.post('/empleados', empleado.addEmpleado);
+router.put('/empleados/:id', empleado.updateEmpleado);
+router.delete('/empleados/:id', empleado.deleteEmpleado);
 
 export default router;
