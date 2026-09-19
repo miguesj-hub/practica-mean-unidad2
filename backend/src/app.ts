@@ -1,7 +1,9 @@
 import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
+import swaggerUi from 'swagger-ui-express';
 import empleadosRoutes from './routes/empleados.routes.js';
+import { openApiDocument } from './docs/openapi.js';
 import { errorHandler, notFoundHandler } from './middlewares/error.middleware.js';
 
 /** Ensamblado de la aplicación HTTP. No sabe nada de persistencia. */
@@ -15,6 +17,18 @@ app.set('nombreApp', 'Gestión de empleados');
 app.use(morgan('dev'));
 app.use(express.json());
 app.use(cors());
+
+// documentación interactiva (antes del 404 genérico)
+app.get('/api/docs.json', (_req, res) => {
+  res.json(openApiDocument);
+});
+app.use(
+  '/api/docs',
+  swaggerUi.serve,
+  swaggerUi.setup(openApiDocument, {
+    customSiteTitle: 'API de Gestión de Empleados'
+  })
+);
 
 // routes
 app.use('/api/v1', empleadosRoutes);
