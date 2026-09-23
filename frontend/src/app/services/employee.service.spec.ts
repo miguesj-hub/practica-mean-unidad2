@@ -3,7 +3,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { firstValueFrom } from 'rxjs';
 import { EmployeeService } from './employee.service';
-import { Employee } from '../models/employee.model';
+import { Employee, EmployeeDraft } from '../models/employee.model';
 
 const API = 'http://127.0.0.1:3000/api/v1/empleados';
 
@@ -15,6 +15,13 @@ const empleado = (id: string, nombre: string, sueldo = 1000): Employee => ({
   sueldo,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z'
+});
+
+const borrador = (nombre: string, sueldo = 1000): EmployeeDraft => ({
+  nombre,
+  cargo: 'Arquitecto de Software',
+  departamento: 'Innovación',
+  sueldo
 });
 
 describe('EmployeeService', () => {
@@ -56,8 +63,7 @@ describe('EmployeeService', () => {
     cargarCon([empleado('1', 'Ana')]);
     const anterior = await firstValueFrom(service.employees$);
 
-    service.setField('nombre', 'Beto');
-    service.save();
+    service.save(borrador('Beto'));
     http.expectOne({ url: API, method: 'POST' }).flush({ success: true, data: empleado('2', 'Beto') });
 
     const actual = await firstValueFrom(service.employees$);
@@ -71,8 +77,7 @@ describe('EmployeeService', () => {
     const anterior = await firstValueFrom(service.employees$);
 
     service.edit(anterior[1]);
-    service.setField('sueldo', 7000);
-    service.save();
+    service.save(borrador('Beto', 7000));
     http
       .expectOne({ url: `${API}/2`, method: 'PUT' })
       .flush({ success: true, data: empleado('2', 'Beto', 7000) });
@@ -98,25 +103,33 @@ describe('EmployeeService', () => {
     expect(actual.map((e) => e.id)).toEqual(['2']);
   });
 
-  it('clona el empleado al editarlo, sin ligar el borrador a la fila', async () => {
+  it('siembra el borrador con una copia del empleado, no con su referencia', async () => {
     cargarCon([empleado('1', 'Ana')]);
     const fila = (await firstValueFrom(service.employees$))[0];
 
     service.edit(fila);
-    service.setField('nombre', 'Ana Modificada');
+    const sembrado = await firstValueFrom(service.draft$);
 
-    expect(fila.nombre).toBe('Ana');
-    expect((await firstValueFrom(service.draft$)).nombre).toBe('Ana Modificada');
+    expect(sembrado).not.toBe(fila);
+    expect(sembrado).toEqual({
+      nombre: fila.nombre,
+      cargo: fila.cargo,
+      departamento: fila.departamento,
+      sueldo: fila.sueldo
+    });
+    expect(await firstValueFrom(service.editingId$)).toBe('1');
   });
 
-  it('actualiza el borrador sobre una referencia nueva', async () => {
-    const anterior = await firstValueFrom(service.draft$);
-    service.setField('cargo', 'QA');
-    const actual = await firstValueFrom(service.draft$);
+  it('emite una referencia nueva en cada limpieza del borrador', async () => {
+    const inicial = await firstValueFrom(service.draft$);
+    service.cancelEdit();
+    const primera = await firstValueFrom(service.draft$);
+    service.cancelEdit();
+    const segunda = await firstValueFrom(service.draft$);
 
-    expect(actual).not.toBe(anterior);
-    expect(anterior.cargo).toBe('');
-    expect(actual.cargo).toBe('QA');
+    expect(primera).not.toBe(inicial);
+    expect(segunda).not.toBe(primera);
+    expect(segunda).toEqual(inicial);
   });
 
   it('deriva la masa salarial del flujo de empleados', async () => {
@@ -124,9 +137,10 @@ describe('EmployeeService', () => {
     expect(await firstValueFrom(service.total$)).toBe(3500);
   });
 
-  it('traduce los errores del backend a un aviso y conserva el borrador', async () => {
-    service.setField('nombre', 'An');
-    service.save();
+  it('traduce los errores del backend a un aviso y no limpia el borrador', async () => {
+    const antes = await firstValueFrom(service.draft$);
+
+    service.save(borrador('An'));
     http.expectOne({ url: API, method: 'POST' }).flush(
       {
         success: false,
@@ -140,13 +154,12 @@ describe('EmployeeService', () => {
       tipo: 'error',
       texto: 'El nombre debe tener al menos 3 caracteres'
     });
-    expect((await firstValueFrom(service.draft$)).nombre).toBe('An');
+    expect(await firstValueFrom(service.draft$)).toBe(antes);
     expect(await firstValueFrom(service.loading$)).toBe(false);
   });
 
-  it('limpia el borrador sólo cuando la operación tuvo éxito', async () => {
-    service.setField('nombre', 'Andrés Mendoza');
-    service.save();
+  it('limpia el borrador y el modo edición sólo cuando la operación tuvo éxito', async () => {
+    service.save(borrador('Andrés Mendoza'));
     http
       .expectOne({ url: API, method: 'POST' })
       .flush({ success: true, data: empleado('9', 'Andrés Mendoza') });

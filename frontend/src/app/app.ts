@@ -1,54 +1,53 @@
-import { Component, OnInit, inject } from '@angular/core';
-import { AsyncPipe, CurrencyPipe } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
+import { AsyncPipe } from '@angular/common';
+import { EmployeeForm } from './components/employee-form/employee-form';
+import { EmployeeGrid } from './components/employee-grid/employee-grid';
+import { NoticeBanner } from './components/notice-banner/notice-banner';
 import { EmployeeService } from './services/employee.service';
 import { Employee, EmployeeDraft } from './models/employee.model';
 
 @Component({
   selector: 'app-root',
-  imports: [AsyncPipe, CurrencyPipe, FormsModule],
+  imports: [AsyncPipe, EmployeeForm, EmployeeGrid, NoticeBanner],
   templateUrl: './app.html',
-  styleUrl: './app.css'
+  styleUrl: './app.css',
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class App implements OnInit {
   private readonly employees = inject(EmployeeService);
 
-  readonly employees$ = this.employees.employees$;
-  readonly draft$ = this.employees.draft$;
-  readonly editingId$ = this.employees.editingId$;
-  readonly loading$ = this.employees.loading$;
-  readonly notice$ = this.employees.notice$;
-  readonly total$ = this.employees.total$;
+  protected readonly employees$ = this.employees.employees$;
+  protected readonly draft$ = this.employees.draft$;
+  protected readonly editingId$ = this.employees.editingId$;
+  protected readonly loading$ = this.employees.loading$;
+  protected readonly notice$ = this.employees.notice$;
+  protected readonly total$ = this.employees.total$;
 
   ngOnInit(): void {
     this.employees.loadAll();
   }
 
-  onField<K extends keyof EmployeeDraft>(campo: K, valor: EmployeeDraft[K]): void {
-    this.employees.setField(campo, valor);
+  protected onSave(borrador: EmployeeDraft): void {
+    this.employees.save(borrador);
   }
 
-  onSave(): void {
-    this.employees.save();
-  }
-
-  onEdit(empleado: Employee): void {
+  protected onEdit(empleado: Employee): void {
     this.employees.edit(empleado);
   }
 
-  onCancel(): void {
+  protected onCancel(): void {
     this.employees.cancelEdit();
   }
 
-  onRemove(id: string): void {
+  protected onRemove(id: string): void {
     this.employees.remove(id);
   }
 
-  onReload(): void {
+  protected onReload(): void {
     this.employees.loadAll();
   }
 
-  onDismiss(): void {
+  protected onDismiss(): void {
     this.employees.dismissNotice();
   }
 }

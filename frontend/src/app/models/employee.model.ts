@@ -31,9 +31,9 @@ export interface ApiFailure {
   errors?: { campo: string; mensaje: string }[];
 }
 
-export const EMPTY_DRAFT: EmployeeDraft = {
+export const nuevoBorrador = (): EmployeeDraft => ({
   nombre: '',
   cargo: '',
   departamento: '',
   sueldo: 0
-};
+});

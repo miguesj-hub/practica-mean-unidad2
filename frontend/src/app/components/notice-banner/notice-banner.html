@@ -1,0 +1,9 @@
+@if (notice) {
+  <div
+    class="alert alert-dismissible"
+    [class.alert-success]="notice.tipo === 'exito'"
+    [class.alert-danger]="notice.tipo === 'error'">
+    {{ notice.texto }}
+    <button type="button" class="btn-close" (click)="dismiss.emit()"></button>
+  </div>
+}

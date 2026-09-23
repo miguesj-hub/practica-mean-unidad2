@@ -4,10 +4,10 @@ import { BehaviorSubject, EMPTY, Observable, catchError, finalize, map } from 'r
 import {
   ApiFailure,
   ApiSuccess,
-  EMPTY_DRAFT,
   Employee,
   EmployeeDraft,
-  Notice
+  Notice,
+  nuevoBorrador
 } from '../models/employee.model';
 
 @Injectable({ providedIn: 'root' })
@@ -16,7 +16,7 @@ export class EmployeeService {
   private readonly api = 'http://127.0.0.1:3000/api/v1/empleados';
 
   private readonly employeesSubject = new BehaviorSubject<Employee[]>([]);
-  private readonly draftSubject = new BehaviorSubject<EmployeeDraft>(EMPTY_DRAFT);
+  private readonly draftSubject = new BehaviorSubject<EmployeeDraft>(nuevoBorrador());
   private readonly editingIdSubject = new BehaviorSubject<string | null>(null);
   private readonly loadingSubject = new BehaviorSubject<boolean>(false);
   private readonly noticeSubject = new BehaviorSubject<Notice | null>(null);
@@ -38,10 +38,6 @@ export class EmployeeService {
     );
   }
 
-  setField<K extends keyof EmployeeDraft>(campo: K, valor: EmployeeDraft[K]): void {
-    this.draftSubject.next({ ...this.draftSubject.value, [campo]: valor });
-  }
-
   edit(empleado: Employee): void {
     this.editingIdSubject.next(empleado.id);
     this.draftSubject.next({
@@ -54,11 +50,10 @@ export class EmployeeService {
 
   cancelEdit(): void {
     this.editingIdSubject.next(null);
-    this.draftSubject.next(EMPTY_DRAFT);
+    this.draftSubject.next(nuevoBorrador());
   }
 
-  save(): void {
-    const borrador = this.draftSubject.value;
+  save(borrador: EmployeeDraft): void {
     const editandoId = this.editingIdSubject.value;
 
     if (editandoId === null) {

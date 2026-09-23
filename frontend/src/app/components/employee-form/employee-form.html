@@ -1,0 +1,65 @@
+<div class="card mb-4">
+  <div class="card-header">
+    @if (editing) {
+      <span>Editando empleado</span>
+    } @else {
+      <span>Nuevo empleado</span>
+    }
+  </div>
+  <div class="card-body">
+    <form (ngSubmit)="onSubmit()">
+      <div class="mb-3">
+        <label class="form-label">Nombre</label>
+        <input
+          type="text"
+          class="form-control"
+          name="nombre"
+          placeholder="Andrés Mendoza"
+          [ngModel]="modelo.nombre"
+          (ngModelChange)="setCampo('nombre', $event)" />
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Cargo</label>
+        <input
+          type="text"
+          class="form-control"
+          name="cargo"
+          placeholder="Arquitecto de Software"
+          [ngModel]="modelo.cargo"
+          (ngModelChange)="setCampo('cargo', $event)" />
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Departamento</label>
+        <input
+          type="text"
+          class="form-control"
+          name="departamento"
+          placeholder="Innovación"
+          [ngModel]="modelo.departamento"
+          (ngModelChange)="setCampo('departamento', $event)" />
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Sueldo</label>
+        <input
+          type="number"
+          class="form-control"
+          name="sueldo"
+          placeholder="4500"
+          [ngModel]="modelo.sueldo"
+          (ngModelChange)="setCampo('sueldo', $event)" />
+      </div>
+      <button type="submit" class="btn btn-primary w-100 mb-2" [disabled]="saving">
+        @if (editing) {
+          <span>Actualizar</span>
+        } @else {
+          <span>Guardar</span>
+        }
+      </button>
+      @if (editing) {
+        <button type="button" class="btn btn-secondary w-100" (click)="cancel.emit()">
+          Cancelar
+        </button>
+      }
+    </form>
+  </div>
+</div>
