@@ -1,0 +1,465 @@
+<title>Evidencia con Atlas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --surface: #fcfcfb;
+    --line: #e3e5ea;
+    --grid: #eceef2;
+    --ink: #11151c;
+    --ink-2: #4d5563;
+    --ink-3: #6f7784;
+    --s1: #2a78d6;      /* 2xx / 201 */
+    --s2: #eb6834;      /* 4xx / 400 */
+    --neutral: #66707f; /* throughput */
+    --good: #1a7f37;
+    --good-bg: #e6f4ea;
+    --sla: #b42318;
+    --band: rgba(42, 120, 214, .06);
+    --sans: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #121417; --surface: #1a1c20; --line: #2b2f36; --grid: #25282e;
+      --ink: #f3f4f6; --ink-2: #c1c6cf; --ink-3: #969ca7;
+      --s1: #3987e5; --s2: #d95926; --neutral: #8b95a5;
+      --good: #4ac26b; --good-bg: #16301f; --sla: #f97066;
+      --band: rgba(57, 135, 229, .09);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #121417; --surface: #1a1c20; --line: #2b2f36; --grid: #25282e;
+    --ink: #f3f4f6; --ink-2: #c1c6cf; --ink-3: #969ca7;
+    --s1: #3987e5; --s2: #d95926; --neutral: #8b95a5;
+    --good: #4ac26b; --good-bg: #16301f; --sla: #f97066;
+    --band: rgba(57, 135, 229, .09);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--ink); font-family: var(--sans);
+    font-size: 15px; line-height: 1.55;
+    padding-inline: 16px; padding-block: 32px 64px;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; display: grid; gap: 28px; }
+  header { display: grid; gap: 6px; }
+  .eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
+  h1 { font-size: clamp(26px, 4vw, 34px); line-height: 1.15; margin: 0; font-weight: 700; text-wrap: balance; letter-spacing: -.01em; }
+  h2 { font-size: 18px; margin: 0; font-weight: 600; text-wrap: balance; }
+  .lede { color: var(--ink-2); max-width: 68ch; margin: 0; }
+  code, .mono { font-family: var(--mono); font-size: .88em; }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+  .tile { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 4px; align-content: start; }
+  .tile .label { font-size: 13px; color: var(--ink-2); }
+  .tile .value { font-size: 30px; font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .tile .value small { font-size: 15px; font-weight: 500; color: var(--ink-2); }
+  .tile .note { font-size: 13px; color: var(--ink-3); }
+  .pill { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: var(--good); background: var(--good-bg); border-radius: 999px; padding: 2px 9px; justify-self: start; }
+  .pill svg { width: 12px; height: 12px; }
+
+  section.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 20px; display: grid; gap: 14px; min-width: 0; }
+  .card-head { display: grid; gap: 4px; }
+  .card-head p { margin: 0; color: var(--ink-2); font-size: 14px; max-width: 72ch; }
+  .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 20px; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; color: var(--ink-2); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .key-rect { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+  .key-line { width: 16px; height: 2px; border-radius: 2px; display: inline-block; }
+
+  .chart { position: relative; width: 100%; }
+  .chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .chart text { font-family: var(--sans); fill: var(--ink-3); font-size: 11px; }
+  .chart .val { fill: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .chart .ann { fill: var(--ink-2); font-size: 11px; }
+  .hit { fill: transparent; cursor: default; }
+  .hit:focus { outline: none; }
+  .hit:focus-visible { stroke: var(--ink-2); stroke-width: 1; }
+  .mark { transition: opacity .12s; }
+  .chart.hovering .mark:not(.on) { opacity: .45; }
+
+  .tip {
+    position: absolute; pointer-events: none; z-index: 5; min-width: 150px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(0,0,0,.12); padding: 8px 10px; font-size: 12px;
+  }
+  .tip .t { color: var(--ink-3); margin-bottom: 4px; font-family: var(--mono); }
+  .tip .row { display: flex; align-items: center; gap: 8px; }
+  .tip .row b { font-variant-numeric: tabular-nums; color: var(--ink); min-width: 52px; }
+  .tip .row span { color: var(--ink-2); }
+
+  .verdict { display: grid; gap: 10px; font-size: 14px; color: var(--ink-2); }
+  .verdict p { margin: 0; max-width: 72ch; }
+  .verdict strong { color: var(--ink); }
+
+  .tests { list-style: none; padding: 0; margin: 0; display: grid; gap: 0; }
+  .tests li { display: grid; grid-template-columns: 20px 1fr auto; gap: 10px; align-items: start; padding: 9px 0; border-top: 1px solid var(--grid); font-size: 14px; }
+  .tests li:first-child { border-top: 0; }
+  .tests svg { width: 16px; height: 16px; margin-top: 3px; color: var(--good); }
+  .tests .what { color: var(--ink-3); font-family: var(--mono); font-size: 12px; white-space: nowrap; }
+  pre.term { margin: 0; font-family: var(--mono); font-size: 12.5px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; overflow-x: auto; color: var(--ink-2); }
+  pre.term .ok { color: var(--good); font-weight: 500; }
+
+  .table-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+  th, td { text-align: right; padding: 7px 10px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--ink-3); font-weight: 500; font-size: 12px; }
+  tfoot td { font-weight: 600; border-bottom: 0; border-top: 1px solid var(--line); }
+  details summary { cursor: pointer; font-weight: 600; font-size: 15px; }
+  details[open] summary { margin-bottom: 12px; }
+  footer { color: var(--ink-3); font-size: 12px; }
+</style>
+<style>
+  :root { --bad: #b42318; --bad-bg: #fdecea; --err: #d92d20; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bad: #f97066; --bad-bg: #3a1a17; --err: #f04438; }
+  }
+  :root[data-theme="dark"] { --bad: #f97066; --bad-bg: #3a1a17; --err: #f04438; }
+  .pill.fail { color: var(--bad); background: var(--bad-bg); }
+  .env { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 12px; color: var(--ink-2); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; justify-self: start; background: var(--surface); }
+  .env i { width: 7px; height: 7px; border-radius: 50%; background: var(--s2); display: inline-block; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Práctica 04 · ISO/IEC 25010 · API de empleados</div>
+    <h1>Evidencia de pruebas con MongoDB Atlas</h1>
+    <p class="lede">La misma prueba de estrés sobre <code>POST /api/v1/empleados</code>, pero con la base de datos en MongoDB Atlas en lugar de una instancia local. Corrida el 25 de septiembre de 2026 entre las 21:16:44 y las 21:17:37 (UTC−5).</p>
+    <span class="env"><i></i>API local → MongoDB Atlas (cluster0, mongodb+srv)</span>
+  </header>
+
+  <div class="tiles">
+    <div class="tile">
+      <span class="label">Pruebas unitarias (Jest)</span>
+      <span class="value">5 <small>de 5</small></span>
+      <span class="pill"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M3 8.5l3 3 7-7"/></svg>Aprobadas</span>
+      <span class="note">No dependen de la base: mismo resultado</span>
+    </div>
+    <div class="tile">
+      <span class="label">Latencia p99</span>
+      <span class="value">1,496 <small>ms</small></span>
+      <span class="pill fail"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M4 4l8 8M12 4l-8 8"/></svg>Incumple SLA &lt; 200 ms</span>
+    </div>
+    <div class="tile">
+      <span class="label">Usuarios virtuales fallidos</span>
+      <span class="value">11.3 <small>%</small></span>
+      <span class="pill fail"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M4 4l8 8M12 4l-8 8"/></svg>Incumple SLA &lt; 1 %</span>
+      <span class="note">122 de 1,075 · 114 ECONNREFUSED, 8 ECONNRESET</span>
+    </div>
+    <div class="tile">
+      <span class="label">Solicitudes enviadas</span>
+      <span class="value">2,066</span>
+      <span class="note">1,944 respondidas · 122 sin respuesta</span>
+    </div>
+  </div>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>¿Cuánto margen queda frente al SLA?</h2>
+      <p>Ninguno. La mediana (153 ms) ya consume tres cuartas partes del presupuesto y el p99 lo supera 7.5 veces. La escala se amplió hasta 2,500 ms para que quepa la cola.</p>
+    </div>
+    <div class="chart" id="c-sla"></div>
+  </section>
+
+  <div class="grid-2">
+    <section class="card">
+      <div class="card-head">
+        <h2>Carga inyectada por ventana</h2>
+        <p>Solicitudes por segundo en cada ventana de reporte. El perfil de carga es el mismo que en la corrida local.</p>
+      </div>
+      <div class="chart" id="c-rps"></div>
+    </section>
+    <section class="card">
+      <div class="card-head">
+        <h2>p99 por ventana: el salto coincide con el reinicio</h2>
+        <p>El registro válido se mantiene cerca de 250 ms y salta a 2 s justo en la ventana en que el backend se reinició. El rechazo de Zod sigue en milisegundos durante toda la prueba.</p>
+      </div>
+      <div class="legend">
+        <span><i class="key-line" style="background:var(--s1)"></i>2xx · registro válido</span>
+        <span><i class="key-line" style="background:var(--s2)"></i>4xx · rechazo Zod</span>
+        <span><i class="key-line" style="background:var(--bad)"></i>SLA 200 ms</span>
+      </div>
+      <div class="chart" id="c-p99"></div>
+    </section>
+  </div>
+
+  <div class="grid-2">
+    <section class="card">
+      <div class="card-head">
+        <h2>201, 400 y errores por ventana</h2>
+        <p>Los totales ya no coinciden: <strong>991 frente a 953</strong>. En la ventana de las 21:17:30 el backend se reinició, dejó de aceptar conexiones y 122 usuarios virtuales abortaron su flujo.</p>
+      </div>
+      <div class="legend">
+        <span><i class="key-rect" style="background:var(--s1)"></i>201 Created</span>
+        <span><i class="key-rect" style="background:var(--s2)"></i>400 Bad Request</span>
+        <span><i class="key-rect" style="background:var(--err)"></i>Error de conexión</span>
+      </div>
+      <div class="chart" id="c-codes"></div>
+    </section>
+    <section class="card">
+      <div class="card-head">
+        <h2>Costo del rechazo perimetral</h2>
+        <p>Tiempo de respuesta global por clase. Un rechazo de Zod cuesta en promedio 1.2 ms. Un registro válido cuesta 388 ms, porque cada inserción viaja hasta Atlas y vuelve.</p>
+      </div>
+      <div class="legend">
+        <span><i class="key-rect" style="background:var(--s1)"></i>2xx · registro válido</span>
+        <span><i class="key-rect" style="background:var(--s2)"></i>4xx · rechazo Zod</span>
+      </div>
+      <div class="chart" id="c-class"></div>
+    </section>
+  </div>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>Lectura bajo ISO/IEC 25010</h2>
+    </div>
+    <div class="verdict">
+      <p><strong>Comportamiento temporal:</strong> no cumple. Cada inserción tiene un piso de unos 155 ms, que es la ida y vuelta por red hasta Atlas. Con ese piso, cualquier espera adicional empuja el p99 por encima de 200 ms.</p>
+      <p><strong>Capacidad:</strong> el salto del p99 de 2xx a 2,019 ms no es un punto de quiebre por carga. Una corrida posterior con la misma carga y sin <code>tsx watch</code> (21:48) mantuvo el p99 de 2xx entre 169 y 215 ms hasta unas 79 req/s, sin errores. El salto coincide con el reinicio del proceso: al volver, el pool de conexiones está vacío y cada conexión nueva hacia Atlas tarda cerca de 1 s en abrirse.</p>
+      <p><strong>El Event Loop no es el cuello de botella:</strong> durante la ventana más lenta, los rechazos de Zod respondieron con mediana de 1 ms. Si el hilo principal estuviera bloqueado, esas respuestas también se habrían retrasado. La espera está en la E/S externa, no en código síncrono.</p>
+      <p><strong>Fiabilidad:</strong> 114 errores ECONNREFUSED significan que en ese momento nada escuchaba en el puerto 3000: el proceso del backend se reinició bajo <code>tsx watch</code>. Sin watch, la misma prueba no tuvo ningún error, así que la causa es el modo de ejecución, no la carga. En la ventana siguiente el servidor vuelve a responder y descarga la cola: 632 respuestas para 570 solicitudes nuevas.</p>
+      <p><strong>Integridad perimetral:</strong> se mantiene. Todos los 400 corresponden a payloads corruptos, y no hubo ningún 5xx.</p>
+    </div>
+  </section>
+
+  <section class="card">
+    <details>
+      <summary>Datos por ventana</summary>
+      <div class="table-wrap">
+        <table id="tbl"></table>
+      </div>
+    </details>
+  </section>
+
+  <footer>Fuente: salida de consola de <code>npx artillery run stress-test.yml</code> del 25-09-2026 a las 21:16:44. Solicitudes por segundo calculadas como solicitudes ÷ ancho real de cada ventana. Los errores de conexión son los contadores <code>errors.ECONNREFUSED</code> y <code>errors.ECONNRESET</code>.</footer>
+</div>
+
+<script>
+(function () {
+  const W = [
+    { t: '21:16:50', w: 4.379, c201: 25,  c400: 20,  err: 0,   req: 45,  resp: 45,  a: { p50: 156, p95: 327.1,  p99: 963.1,  max: 974 },  x2: { mean: 267,   p50: 159.2, p95: 963.1,  p99: 963.1,  max: 974 },  x4: { mean: 0.9, p95: 1, p99: 1,    max: 2 } },
+    { t: '21:17:00', w: 9.341, c201: 49,  c400: 49,  err: 0,   req: 99,  resp: 98,  a: { p50: 36.2, p95: 169,  p99: 252.2,  max: 285 },  x2: { mean: 165,   p50: 159.2, p95: 183.1,  p99: 252.2,  max: 285 },  x4: { mean: 3.0, p95: 6, p99: 34.8, max: 36 } },
+    { t: '21:17:10', w: 9.978, c201: 110, c400: 94,  err: 0,   req: 208, resp: 204, a: { p50: 156, p95: 169,    p99: 247.2,  max: 1026 }, x2: { mean: 183.5, p50: 156,   p95: 186.8,  p99: 963.1,  max: 1026 }, x4: { mean: 0.9, p95: 2, p99: 5,    max: 11 } },
+    { t: '21:17:20', w: 9.957, c201: 265, c400: 254, err: 0,   req: 520, resp: 519, a: { p50: 153, p95: 169,    p99: 202.4,  max: 982 },  x2: { mean: 164.6, p50: 159.2, p95: 179.5,  p99: 232.8,  max: 982 },  x4: { mean: 1.1, p95: 4, p99: 7.9,  max: 18 } },
+    { t: '21:17:30', w: 9.998, c201: 249, c400: 197, err: 122, req: 624, resp: 446, a: { p50: 156, p95: 1465.9, p99: 1620,   max: 2348 }, x2: { mean: 629.5, p50: 162.4, p95: 1495.5, p99: 2018.7, max: 2348 }, x4: { mean: 1.5, p95: 6, p99: 18,   max: 44 } },
+    { t: '21:17:36', w: 6.128, c201: 293, c400: 339, err: 0,   req: 570, resp: 632, a: { p50: 2,   p95: 1200.1, p99: 1353.1, max: 2283 }, x2: { mean: 507.8, p50: 210.6, p95: 1274.3, p99: 1901.1, max: 2283 }, x4: { mean: 0.9, p95: 2, p99: 7,    max: 17 } },
+  ];
+  W.forEach(d => { d.rps = d.req / d.w; });
+  const PHASE = i => i < 2 ? 'Calentamiento · 5 VU/s' : (i === 2 ? 'Transición a la rampa (21:17:04)' : 'Rampa 15 → 50 VU/s');
+  const PHX = 0.4; // 21:17:04 cae al 40 % de la ventana 21:17:00–21:17:10
+
+  const NS = 'http://www.w3.org/2000/svg';
+  const el = (tag, attrs, parent) => { const n = document.createElementNS(NS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); if (parent) parent.appendChild(n); return n; };
+  const txt = (parent, x, y, s, attrs = {}) => { const t = el('text', Object.assign({ x, y }, attrs), parent); t.textContent = s; return t; };
+  const fmt = (v, d = 1) => (Math.round(v * 10 ** d) / 10 ** d).toLocaleString('en-US', { maximumFractionDigits: d });
+  const num = v => v.toLocaleString('en-US');
+  function colPath(x, y, w, h, r = 4) { if (h <= 0) return ''; r = Math.min(r, h, w / 2); return `M${x},${y + h}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h}Z`; }
+  function barPathH(x, y, w, h, r = 4) { w = Math.max(w, 1.5); r = Math.min(r, w, h / 2); return `M${x},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h - r}Q${x + w},${y + h} ${x + w - r},${y + h}H${x}Z`; }
+
+  function makeTip(host) {
+    const tip = document.createElement('div'); tip.className = 'tip'; tip.hidden = true; host.appendChild(tip);
+    return {
+      show(title, rows, px, py) {
+        tip.replaceChildren();
+        const t = document.createElement('div'); t.className = 't'; t.textContent = title; tip.appendChild(t);
+        rows.forEach(r => {
+          const row = document.createElement('div'); row.className = 'row';
+          if (r.color) { const k = document.createElement('i'); k.className = 'key-line'; k.style.background = r.color; row.appendChild(k); }
+          const b = document.createElement('b'); b.textContent = r.value; row.appendChild(b);
+          const s = document.createElement('span'); s.textContent = r.label; row.appendChild(s);
+          tip.appendChild(row);
+        });
+        tip.hidden = false;
+        const hw = host.clientWidth, tw = tip.offsetWidth;
+        let left = px + 14; if (left + tw > hw) left = px - tw - 14; if (left < 0) left = 0;
+        tip.style.left = left + 'px'; tip.style.top = Math.max(0, py - 10) + 'px';
+      },
+      hide() { tip.hidden = true; }
+    };
+  }
+  function localXY(host, evt, fb) {
+    const hb = host.getBoundingClientRect();
+    if (evt && evt.clientX !== undefined && evt.type !== 'focus') return [evt.clientX - hb.left, evt.clientY - hb.top];
+    const b = fb.getBoundingClientRect(); return [b.left - hb.left + b.width / 2, b.top - hb.top];
+  }
+  function wireHit(host, hit, marks, onShow, tip, onOff) {
+    const on = e => { host.classList.add('hovering'); marks.forEach(m => m.classList.add('on')); const [x, y] = localXY(host, e, hit); onShow(x, y); };
+    const off = () => { host.classList.remove('hovering'); marks.forEach(m => m.classList.remove('on')); tip.hide(); if (onOff) onOff(); };
+    hit.setAttribute('tabindex', '0');
+    hit.addEventListener('pointermove', on); hit.addEventListener('focus', on);
+    hit.addEventListener('pointerleave', off); hit.addEventListener('blur', off);
+  }
+  function yAxis(svg, m, iw, ih, max, step, unit) {
+    for (let v = 0; v <= max + 1e-9; v += step) {
+      const y = m.t + ih - (v / max) * ih;
+      el('line', { x1: m.l, x2: m.l + iw, y1: y, y2: y, stroke: 'var(--grid)', 'stroke-width': 1 }, svg);
+      txt(svg, m.l - 8, y + 4, num(v) + (unit && v === max ? ' ' + unit : ''), { 'text-anchor': 'end' });
+    }
+  }
+  function phaseBand(svg, m, band, ih, iw) {
+    const phx = m.l + band * (2 + PHX);
+    el('rect', { x: phx, y: m.t, width: m.l + iw - phx, height: ih, fill: 'var(--band)' }, svg);
+    txt(svg, phx + 4, m.t - 8, 'Fase 2: rampa', { class: 'ann' });
+  }
+
+  // 1. SLA bullet
+  (function () {
+    const host = document.getElementById('c-sla');
+    const VW = 900, VH = 120, m = { l: 12, r: 24, t: 34, b: 30 }, iw = VW - m.l - m.r, max = 2500;
+    const svg = el('svg', { viewBox: `0 0 ${VW} ${VH}`, role: 'img', 'aria-label': 'p50 153 ms, p95 1,249 ms, p99 1,496 ms, máximo 2,348 ms, contra un SLA de 200 ms' }, host);
+    const X = v => m.l + (v / max) * iw, y = m.t, h = 22;
+    for (let v = 0; v <= max; v += 250) {
+      el('line', { x1: X(v), x2: X(v), y1: y - 6, y2: y + h + 6, stroke: 'var(--grid)', 'stroke-width': 1 }, svg);
+      if (v % 500 === 0) txt(svg, X(v), y + h + 22, num(v) + (v === max ? ' ms' : ''), { 'text-anchor': v === max ? 'end' : 'middle' });
+    }
+    el('rect', { x: X(0), y, width: iw, height: h, rx: 4, fill: 'var(--grid)' }, svg);
+    const p99 = el('path', { d: barPathH(X(0), y, X(1495.5) - X(0), h), fill: 'var(--s1)', class: 'mark' }, svg);
+    const mx = el('path', { d: barPathH(X(1495.5) + 2, y + 7, X(2348) - X(1495.5) - 2, h - 14, 3), fill: 'var(--s1)', opacity: .35, class: 'mark' }, svg);
+    el('line', { x1: X(153), x2: X(153), y1: y, y2: y + h, stroke: 'var(--surface)', 'stroke-width': 2 }, svg);
+    txt(svg, X(153), y + h + 22, 'p50', { 'text-anchor': 'middle', class: 'ann' });
+    txt(svg, X(1495.5), y - 10, 'p99 1,496 ms', { class: 'val', 'text-anchor': 'end' });
+    txt(svg, X(2348) + 6, y + h / 2 + 4, 'máx. 2,348 ms', { class: 'ann' });
+    el('line', { x1: X(200), x2: X(200), y1: y - 12, y2: y + h + 6, stroke: 'var(--bad)', 'stroke-width': 2 }, svg);
+    txt(svg, X(200) + 6, y - 16, 'SLA p99 < 200 ms', { class: 'ann' });
+    const tip = makeTip(host);
+    const hit = el('rect', { x: X(0), y: y - 8, width: iw, height: h + 16, class: 'hit' }, svg);
+    wireHit(host, hit, [p99, mx], (px, py) => tip.show('Distribución global', [
+      { value: '153 ms', label: 'p50' }, { value: '1,249 ms', label: 'p95' }, { value: '1,496 ms', label: 'p99' },
+      { value: '2,348 ms', label: 'máx.' }, { value: '200 ms', label: 'umbral SLA' }
+    ], px, py), tip);
+  })();
+
+  // 2. Throughput
+  (function () {
+    const host = document.getElementById('c-rps');
+    const VW = 480, VH = 260, m = { l: 40, r: 10, t: 24, b: 44 }, iw = VW - m.l - m.r, ih = VH - m.t - m.b, max = 100;
+    const svg = el('svg', { viewBox: `0 0 ${VW} ${VH}`, role: 'img', 'aria-label': 'Solicitudes por segundo por ventana' }, host);
+    yAxis(svg, m, iw, ih, max, 25, 'req/s');
+    const band = iw / W.length, bw = Math.min(24, band * .5), bx = i => m.l + band * i + band / 2;
+    phaseBand(svg, m, band, ih, iw);
+    const tip = makeTip(host);
+    W.forEach((d, i) => {
+      const h = (d.rps / max) * ih, y = m.t + ih - h;
+      const p = el('path', { d: colPath(bx(i) - bw / 2, y, bw, h), fill: 'var(--neutral)', class: 'mark' }, svg);
+      if (i === 0 || i === W.length - 1) txt(svg, bx(i), y - 6, fmt(d.rps, 0), { class: 'val', 'text-anchor': 'middle' });
+      txt(svg, bx(i), m.t + ih + 18, d.t.slice(3), { 'text-anchor': 'middle' });
+      const hit = el('rect', { x: m.l + band * i, y: m.t, width: band, height: ih, class: 'hit' }, svg);
+      wireHit(host, hit, [p], (px, py) => tip.show(`Ventana hasta ${d.t}`, [
+        { value: fmt(d.rps) + ' req/s', label: 'rendimiento' },
+        { value: num(d.req), label: `solicitudes en ${fmt(d.w)} s` },
+        { value: '', label: PHASE(i) }
+      ], px, py), tip);
+    });
+    txt(svg, m.l + iw / 2, VH - 6, 'Fin de ventana (min:s)', { 'text-anchor': 'middle' });
+  })();
+
+  // 3. p99 per window
+  (function () {
+    const host = document.getElementById('c-p99');
+    const VW = 480, VH = 260, m = { l: 48, r: 50, t: 24, b: 44 }, iw = VW - m.l - m.r, ih = VH - m.t - m.b, max = 2500;
+    const svg = el('svg', { viewBox: `0 0 ${VW} ${VH}`, role: 'img', 'aria-label': 'p99 por ventana para respuestas 2xx y 4xx' }, host);
+    yAxis(svg, m, iw, ih, max, 500, 'ms');
+    const band = iw / W.length, X = i => m.l + band * i + band / 2, Y = v => m.t + ih - (v / max) * ih;
+    phaseBand(svg, m, band, ih, iw);
+    el('line', { x1: m.l, x2: m.l + iw, y1: Y(200), y2: Y(200), stroke: 'var(--bad)', 'stroke-width': 1.5 }, svg);
+    W.forEach((d, i) => txt(svg, X(i), m.t + ih + 18, d.t.slice(3), { 'text-anchor': 'middle' }));
+    txt(svg, m.l + iw / 2, VH - 6, 'Fin de ventana (min:s)', { 'text-anchor': 'middle' });
+    const cross = el('line', { y1: m.t, y2: m.t + ih, stroke: 'var(--ink-3)', 'stroke-width': 1, opacity: 0 }, svg);
+    [['x2', 'var(--s1)'], ['x4', 'var(--s2)']].forEach(([k, c]) => {
+      el('path', { d: W.map((w, i) => `${i ? 'L' : 'M'}${X(i)},${Y(w[k].p99)}`).join(''), fill: 'none', stroke: c, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, svg);
+      W.forEach((w, i) => el('circle', { cx: X(i), cy: Y(w[k].p99), r: 4, fill: c, stroke: 'var(--surface)', 'stroke-width': 2 }, svg));
+    });
+    txt(svg, X(4) - 8, Y(2018.7) + 4, '2,019 ms', { class: 'val', 'text-anchor': 'end' });
+    txt(svg, X(5) + 10, Y(1901.1) + 4, '1,901', { class: 'val' });
+    txt(svg, X(5) + 10, Y(7) - 4, '7 ms', { class: 'val' });
+    txt(svg, X(0) + 10, Y(963.1) - 6, '963 ms · conexiones nuevas', { class: 'ann' });
+    const tip = makeTip(host);
+    W.forEach((d, i) => {
+      const hit = el('rect', { x: m.l + band * i, y: m.t, width: band, height: ih, class: 'hit' }, svg);
+      wireHit(host, hit, [], (px, py) => {
+        cross.setAttribute('x1', X(i)); cross.setAttribute('x2', X(i)); cross.setAttribute('opacity', .5);
+        tip.show(`Ventana hasta ${d.t} · ${fmt(d.rps, 0)} req/s`, [
+          { color: 'var(--s1)', value: fmt(d.x2.p99) + ' ms', label: 'p99 2xx' },
+          { color: 'var(--s2)', value: fmt(d.x4.p99) + ' ms', label: 'p99 4xx' },
+          { value: fmt(d.a.p99) + ' ms', label: 'p99 global' }
+        ], px, py);
+      }, tip, () => cross.setAttribute('opacity', 0));
+    });
+  })();
+
+  // 4. Codes + errors
+  (function () {
+    const host = document.getElementById('c-codes');
+    const VW = 480, VH = 260, m = { l: 40, r: 10, t: 16, b: 44 }, iw = VW - m.l - m.r, ih = VH - m.t - m.b, max = 400;
+    const svg = el('svg', { viewBox: `0 0 ${VW} ${VH}`, role: 'img', 'aria-label': 'Respuestas 201, 400 y errores de conexión por ventana' }, host);
+    yAxis(svg, m, iw, ih, max, 100);
+    const band = iw / W.length, bw = Math.min(16, band * .24), gap = 2, tip = makeTip(host);
+    W.forEach((d, i) => {
+      const cx = m.l + band * i + band / 2;
+      const marks = [['c201', 'var(--s1)'], ['c400', 'var(--s2)'], ['err', 'var(--err)']].map(([k, c], j) => {
+        const h = (d[k] / max) * ih, x = cx - (bw * 1.5 + gap) + j * (bw + gap);
+        return el('path', { d: colPath(x, m.t + ih - h, bw, h), fill: c, class: 'mark' }, svg);
+      });
+      txt(svg, cx, m.t + ih + 18, d.t.slice(3), { 'text-anchor': 'middle' });
+      const hit = el('rect', { x: m.l + band * i, y: m.t, width: band, height: ih, class: 'hit' }, svg);
+      wireHit(host, hit, marks, (px, py) => tip.show(`Ventana hasta ${d.t}`, [
+        { color: 'var(--s1)', value: num(d.c201), label: '201 Created' },
+        { color: 'var(--s2)', value: num(d.c400), label: '400 Bad Request' },
+        { color: 'var(--err)', value: num(d.err), label: d.err ? 'errores (114 REFUSED, 8 RESET)' : 'errores de conexión' }
+      ], px, py), tip);
+    });
+    const e = W[4], ex = m.l + band * 4.5 + bw + gap;
+    txt(svg, ex + bw / 2, m.t + ih - (e.err / max) * ih - 6, '122', { class: 'val', 'text-anchor': 'middle' });
+    txt(svg, m.l + iw / 2, VH - 6, 'Fin de ventana (min:s)', { 'text-anchor': 'middle' });
+  })();
+
+  // 5. Class comparison
+  (function () {
+    const host = document.getElementById('c-class');
+    const stats = [{ k: 'media', a: 387.6, b: 1.2 }, { k: 'mediana', a: 159.2, b: 1 }, { k: 'p95', a: 1408.4, b: 4 }, { k: 'p99', a: 1525.7, b: 10.1 }];
+    const VW = 480, VH = 260, m = { l: 62, r: 70, t: 10, b: 30 }, iw = VW - m.l - m.r, ih = VH - m.t - m.b, max = 1600;
+    const svg = el('svg', { viewBox: `0 0 ${VW} ${VH}`, role: 'img', 'aria-label': 'Media, mediana, p95 y p99 de 2xx frente a 4xx' }, host);
+    const X = v => m.l + (v / max) * iw;
+    for (let v = 0; v <= max; v += 400) {
+      el('line', { x1: X(v), x2: X(v), y1: m.t, y2: m.t + ih, stroke: 'var(--grid)', 'stroke-width': 1 }, svg);
+      txt(svg, X(v), m.t + ih + 18, num(v) + (v === max ? ' ms' : ''), { 'text-anchor': 'middle' });
+    }
+    const band = ih / stats.length, bh = Math.min(18, band * .3), tip = makeTip(host);
+    stats.forEach((s, i) => {
+      const cy = m.t + band * i + band / 2;
+      txt(svg, m.l - 10, cy + 4, s.k, { 'text-anchor': 'end', style: 'fill:var(--ink-2);font-size:12px' });
+      const marks = [[s.a, 'var(--s1)', cy - bh - 1], [s.b, 'var(--s2)', cy + 1]].map(([v, c, y]) => {
+        const p = el('path', { d: barPathH(X(0), y, X(v) - X(0), bh), fill: c, class: 'mark' }, svg);
+        txt(svg, Math.max(X(v), X(0) + 2) + 6, y + bh / 2 + 4, fmt(v) + ' ms', { class: 'val' });
+        return p;
+      });
+      const hit = el('rect', { x: 0, y: m.t + band * i, width: VW, height: band, class: 'hit' }, svg);
+      wireHit(host, hit, marks, (px, py) => tip.show(s.k, [
+        { color: 'var(--s1)', value: fmt(s.a) + ' ms', label: '2xx · registro' },
+        { color: 'var(--s2)', value: fmt(s.b) + ' ms', label: '4xx · Zod' },
+        { value: '×' + fmt(s.a / s.b, 0), label: 'más lento el registro' }
+      ], px, py), tip);
+    });
+  })();
+
+  // Table
+  const tbl = document.getElementById('tbl');
+  const head = ['Ventana hasta', 'Ancho (s)', 'Solicitudes', 'Respuestas', 'req/s', '201', '400', 'Errores', 'p95 (ms)', 'p99 (ms)', 'p99 2xx', 'p99 4xx', 'Máx. (ms)'];
+  const thr = tbl.createTHead().insertRow();
+  head.forEach(h => { const th = document.createElement('th'); th.textContent = h; thr.appendChild(th); });
+  const tb = tbl.createTBody();
+  W.forEach(d => {
+    const r = tb.insertRow();
+    [d.t, fmt(d.w, 2), num(d.req), num(d.resp), fmt(d.rps), num(d.c201), num(d.c400), num(d.err), fmt(d.a.p95), fmt(d.a.p99), fmt(d.x2.p99), fmt(d.x4.p99), num(d.a.max)]
+      .forEach(v => { r.insertCell().textContent = v; });
+  });
+  const tf = tbl.createTFoot().insertRow();
+  ['Total', '52', '2,066', '1,944', '53', '991', '953', '122', '1,249.1', '1,495.5', '1,525.7', '10.1', '2,348'].forEach(v => { tf.insertCell().textContent = v; });
+})();
+</script>

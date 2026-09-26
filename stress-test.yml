@@ -1,0 +1,48 @@
+# Fase B: prueba de estrés concurrente (Artillery).
+# Atributo ISO/IEC 25010: Eficiencia de Desempeño (comportamiento temporal y capacidad).
+#
+# Adaptado del enunciado a la API real:
+#   - la ruta es /api/v1/empleados (no /employees)
+#   - la entidad expone `id`, no `_id`, dentro de la envoltura { success, data }
+config:
+  # IPv4 explícito: `localhost` puede resolver a ::1 y caer en otro servidor del puerto 3000
+  target: "http://127.0.0.1:3000"
+  plugins:
+    ensure: {} # Falla automáticamente el proceso si no se cumplen los acuerdos de nivel de servicio (SLA)
+  phases:
+    - duration: 20
+      arrivalRate: 5
+      name: "1. 🧪 Fase de Calentamiento (Tráfico Base)"
+    - duration: 30
+      arrivalRate: 15
+      rampTo: 50
+      name: "2. 🧪 Fase de Saturación Máxima (Pico de Carga)"
+
+  ensure:
+    thresholds:
+      - "http.response_time.p99": 200 # El 99% de las transacciones debe procesarse en < 200ms (Comportamiento temporal)
+    maxErrorRate: 1 # No se permite más del 1% de caídas del socket HTTP
+
+scenarios:
+  - name: "Inundación transaccional perimetral (Payloads Mixtos Zod)"
+    flow:
+      # Flujo A: Datos Correctos -> Evalúa la tubería completa refactorizada
+      - post:
+          url: "/api/v1/empleados"
+          json:
+            nombre: "Andrés Mendoza"
+            cargo: "Software Architect"
+            departamento: "I+D"
+            sueldo: 4200
+          capture:
+            json: "$.data.id"
+            as: "employeeId"
+      - think: 1
+      # Flujo B: Datos Corruptos -> Evalúa el rechazo inmediato y óptimo del DTO Zod
+      - post:
+          url: "/api/v1/empleados"
+          json:
+            nombre: "Al"
+            cargo: "Dev"
+            departamento: "TI"
+            sueldo: -500 # Campo ilegal
