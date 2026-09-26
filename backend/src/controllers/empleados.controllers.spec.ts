@@ -108,6 +108,50 @@ describe('🧪 Unit Test: EmpleadoController (Mantenibilidad & Testabilidad)', (
     expect(jsonMock).toHaveBeenCalledWith(ok(fakeEmployee));
   });
 
+  it('Debería retornar 200 y el empleado actualizado', async () => {
+    const cambios = { sueldo: 4500 };
+    const actualizado: Employee = { ...fakeEmployee, ...cambios };
+    mockRepository.update.mockResolvedValue(actualizado);
+    mockRequest = { params: { id: fakeEmployee.id }, body: cambios };
+
+    await controller.updateEmpleado(
+      mockRequest as Request<{ id: string }>,
+      mockResponse as Response
+    );
+
+    expect(mockRepository.update).toHaveBeenCalledWith(fakeEmployee.id, cambios);
+    expect(statusMock).toHaveBeenCalledWith(200);
+    expect(jsonMock).toHaveBeenCalledWith(ok(actualizado));
+  });
+
+  it('Debería lanzar NotFoundError al actualizar un id inexistente', async () => {
+    mockRepository.update.mockResolvedValue(null);
+    mockRequest = { params: { id: 'inexistente' }, body: { sueldo: 4500 } };
+
+    await expect(
+      controller.updateEmpleado(
+        mockRequest as Request<{ id: string }>,
+        mockResponse as Response
+      )
+    ).rejects.toBeInstanceOf(NotFoundError);
+
+    expect(statusMock).not.toHaveBeenCalled();
+  });
+
+  it('Debería lanzar NotFoundError al eliminar un id inexistente', async () => {
+    mockRepository.delete.mockResolvedValue(false);
+    mockRequest = { params: { id: 'inexistente' } };
+
+    await expect(
+      controller.deleteEmpleado(
+        mockRequest as Request<{ id: string }>,
+        mockResponse as Response
+      )
+    ).rejects.toBeInstanceOf(NotFoundError);
+
+    expect(statusMock).not.toHaveBeenCalled();
+  });
+
   it('Debería retornar 200 con el id eliminado', async () => {
     mockRepository.delete.mockResolvedValue(true);
     mockRequest = { params: { id: fakeEmployee.id } };
