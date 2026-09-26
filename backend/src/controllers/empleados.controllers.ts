@@ -23,7 +23,7 @@ export const createEmpleadoController = (repository: IEmployeeRepository) => ({
   /** Consulta completa. */
   async getEmpleados(_req: Request, res: Response<ApiResponse<Employee[]>>) {
     const empleados = await repository.findAll();
-    res.json(ok(empleados));
+    res.status(200).json(ok(empleados));
   },
 
   /** Consulta atómica por identificador único. */
@@ -35,7 +35,7 @@ export const createEmpleadoController = (repository: IEmployeeRepository) => ({
     if (!empleado) {
       throw new NotFoundError(`No existe un empleado con id ${req.params.id}`);
     }
-    res.json(ok(empleado));
+    res.status(200).json(ok(empleado));
   },
 
   /** Registro. */
@@ -56,7 +56,7 @@ export const createEmpleadoController = (repository: IEmployeeRepository) => ({
     if (!empleado) {
       throw new NotFoundError(`No existe un empleado con id ${req.params.id}`);
     }
-    res.json(ok(empleado));
+    res.status(200).json(ok(empleado));
   },
 
   /** Eliminación. */
@@ -68,6 +68,6 @@ export const createEmpleadoController = (repository: IEmployeeRepository) => ({
     if (!eliminado) {
       throw new NotFoundError(`No existe un empleado con id ${req.params.id}`);
     }
-    res.json(ok({ id: req.params.id }));
+    res.status(200).json(ok({ id: req.params.id }));
   }
 });
