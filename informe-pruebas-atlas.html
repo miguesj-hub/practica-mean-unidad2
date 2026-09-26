@@ -177,8 +177,8 @@
     </section>
     <section class="card">
       <div class="card-head">
-        <h2>p99 por ventana: degradación no lineal</h2>
-        <p>El registro válido se mantiene cerca de 250 ms hasta unas 50 req/s y luego salta a 2 s. El rechazo de Zod sigue en milisegundos durante toda la prueba.</p>
+        <h2>p99 por ventana: el salto coincide con el reinicio</h2>
+        <p>El registro válido se mantiene cerca de 250 ms y salta a 2 s justo en la ventana en que el backend se reinició. El rechazo de Zod sigue en milisegundos durante toda la prueba.</p>
       </div>
       <div class="legend">
         <span><i class="key-line" style="background:var(--s1)"></i>2xx · registro válido</span>
@@ -193,7 +193,7 @@
     <section class="card">
       <div class="card-head">
         <h2>201, 400 y errores por ventana</h2>
-        <p>Los totales ya no coinciden: <strong>991 frente a 953</strong>. En la ventana de las 21:17:30 el servidor dejó de aceptar conexiones y 122 usuarios virtuales abortaron su flujo.</p>
+        <p>Los totales ya no coinciden: <strong>991 frente a 953</strong>. En la ventana de las 21:17:30 el backend se reinició, dejó de aceptar conexiones y 122 usuarios virtuales abortaron su flujo.</p>
       </div>
       <div class="legend">
         <span><i class="key-rect" style="background:var(--s1)"></i>201 Created</span>
@@ -221,9 +221,9 @@
     </div>
     <div class="verdict">
       <p><strong>Comportamiento temporal:</strong> no cumple. Cada inserción tiene un piso de unos 155 ms, que es la ida y vuelta por red hasta Atlas. Con ese piso, cualquier espera adicional empuja el p99 por encima de 200 ms.</p>
-      <p><strong>Capacidad:</strong> aquí sí aparece el punto de quiebre. Hasta unas 50 req/s el p99 de 2xx se mantiene entre 230 y 250 ms; a unas 62 req/s salta a 2,019 ms. El crecimiento no es lineal: las peticiones empiezan a hacer cola esperando una conexión libre hacia Atlas.</p>
+      <p><strong>Capacidad:</strong> el salto del p99 de 2xx a 2,019 ms no es un punto de quiebre por carga. Una corrida posterior con la misma carga y sin <code>tsx watch</code> (21:48) mantuvo el p99 de 2xx entre 169 y 215 ms hasta unas 79 req/s, sin errores. El salto coincide con el reinicio del proceso: al volver, el pool de conexiones está vacío y cada conexión nueva hacia Atlas tarda cerca de 1 s en abrirse.</p>
       <p><strong>El Event Loop no es el cuello de botella:</strong> durante la ventana más lenta, los rechazos de Zod respondieron con mediana de 1 ms. Si el hilo principal estuviera bloqueado, esas respuestas también se habrían retrasado. La espera está en la E/S externa, no en código síncrono.</p>
-      <p><strong>Fiabilidad:</strong> 114 errores ECONNREFUSED significan que en ese momento nada escuchaba en el puerto 3000, es decir, el proceso del backend se cayó o se reinició (<code>tsx watch</code>). Hay que revisar su consola para confirmar la causa. En la ventana siguiente vuelve a responder y descarga la cola: 632 respuestas para 570 solicitudes nuevas.</p>
+      <p><strong>Fiabilidad:</strong> 114 errores ECONNREFUSED significan que en ese momento nada escuchaba en el puerto 3000: el proceso del backend se reinició bajo <code>tsx watch</code>. Sin watch, la misma prueba no tuvo ningún error, así que la causa es el modo de ejecución, no la carga. En la ventana siguiente el servidor vuelve a responder y descarga la cola: 632 respuestas para 570 solicitudes nuevas.</p>
       <p><strong>Integridad perimetral:</strong> se mantiene. Todos los 400 corresponden a payloads corruptos, y no hubo ningún 5xx.</p>
     </div>
   </section>
