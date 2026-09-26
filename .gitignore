@@ -1,4 +1,5 @@
-node_modules/
-dist/
+# Ignores comunes a todo el repositorio.
+# Los específicos de cada proyecto viven en backend/.gitignore y frontend/.gitignore.
+
 *.pdf
 .DS_Store

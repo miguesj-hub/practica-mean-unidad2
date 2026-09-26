@@ -1,0 +1,25 @@
+# Dependencias
+/node_modules
+
+# Salida de compilación (tsc)
+/dist
+
+# Variables de entorno: contienen la URI de Atlas con la contraseña
+.env
+.env.*
+!.env.example
+
+# Pruebas (Jest)
+/coverage
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editores y sistema
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/launch.json
+.DS_Store
+Thumbs.db
