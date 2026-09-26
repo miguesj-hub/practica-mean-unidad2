@@ -1,17 +1,20 @@
-# Despliegue en producción — AWS EC2 + Nginx + PM2
+# Despliegue en producción — Azure Static Web Apps + AWS EC2 (Nginx + PM2)
 
-Guía paso a paso para desplegar **Gestión de Empleados** (Angular + Express/TypeScript + MongoDB Atlas) según la práctica **PDA06 — Despliegue de Aplicaciones Node.js en Producción utilizando AWS, Nginx y PM2**. La creación de la instancia EC2 (práctica PW15) se da por hecha.
+Guía paso a paso del despliegue de **Gestión de Empleados** según la práctica **PDA06 — Despliegue de Aplicaciones Node.js en Producción utilizando AWS, Nginx y PM2**, con el frontend publicado en **Azure Static Web Apps**. La creación de la instancia EC2 (práctica PW15) se da por hecha.
 
-| Dato | Valor |
+| Pieza | Valor |
 |---|---|
-| Repositorio | `git@github.com:miguesj-hub/practica-mean-unidad2.git` |
-| Rama de despliegue | `main` |
-| Servidor | Ubuntu Server en EC2, región `us-east-2` |
-| IP pública | `18.116.22.239` (debe ser una **IP elástica**, ver Fase 1) |
-| DNS público | `http://ec2-18-116-22-239.us-east-2.compute.amazonaws.com/` |
+| **Frontend (Azure)** | https://blue-sand-076769b1e.1.azurestaticapps.net/ |
+| **API (EC2)** | https://empleados-miguel.duckdns.org/api/v1/empleados |
+| **Swagger** | https://empleados-miguel.duckdns.org/api/docs/ |
+| Repositorio | `git@github.com:miguesj-hub/practica-mean-unidad2.git` (rama `main`) |
+| Servidor | Ubuntu Server en EC2, región `us-east-2`, 2 vCPU |
+| IP elástica | `18.116.22.239` |
+| Dominio de la API | `empleados-miguel.duckdns.org` (DuckDNS) → `18.116.22.239` |
 | Ruta en el servidor | `/var/www/empleados` |
-| Proceso PM2 | `gestion-empleados` |
-| Puerto interno del backend | `3000` (nunca expuesto al público) |
+| Proceso PM2 | `gestion-empleados` (cluster, 2 réplicas) |
+| Base de datos | MongoDB Atlas, base `usuarios_db` |
+| Alertas | Discord (webhook) con `pm2-discord` |
 
 ---
 
@@ -23,70 +26,80 @@ Guía paso a paso para desplegar **Gestión de Empleados** (Angular + Express/Ty
 3. [Fase 2 · Preparar el servidor](#fase-2--preparar-el-servidor)
 4. [Fase 3 · Vincular el servidor con GitHub y preparar carpetas](#fase-3--vincular-el-servidor-con-github-y-preparar-carpetas)
 5. [Fase 4 · Nginx como proxy inverso](#fase-4--nginx-como-proxy-inverso)
-6. [Fase 5 · PM2 y despliegue automatizado (CI/CD)](#fase-5--pm2-y-despliegue-automatizado-cicd)
+6. [Fase 5 · PM2 y despliegue automatizado del backend (CI/CD)](#fase-5--pm2-y-despliegue-automatizado-del-backend-cicd)
 7. [Fase 6 · Monitorización, alertas y rotación de logs](#fase-6--monitorización-alertas-y-rotación-de-logs)
-8. [Pruebas de verificación](#pruebas-de-verificación-criterios-de-evaluación)
-9. [Operación diaria](#operación-diaria)
-10. [Solución de problemas](#solución-de-problemas)
-11. [Checklist de evidencias para el informe](#checklist-de-evidencias-para-el-informe)
-12. [Opcional: HTTPS con Certbot](#opcional-https-con-certbot)
+8. [Fase 7 · Dominio y HTTPS para la API](#fase-7--dominio-y-https-para-la-api)
+9. [Fase 8 · Frontend en Azure Static Web Apps](#fase-8--frontend-en-azure-static-web-apps)
+10. [Pruebas de verificación](#pruebas-de-verificación-criterios-de-evaluación)
+11. [Operación diaria](#operación-diaria)
+12. [Solución de problemas](#solución-de-problemas)
+13. [Checklist de evidencias para el informe](#checklist-de-evidencias-para-el-informe)
 
 ---
 
 ## 0. Arquitectura
 
 ```
-                         ┌──────────────────── AWS EC2 (Ubuntu) ─────────────────────┐
-                         │                                                           │
-Navegador ──► Security ──► IP elástica ──► Nginx :80 ─┬─ /       → archivos estáticos │
-              Group                                   │            de Angular (disco)│
-              80 · 443 · 22 (solo mi IP)              │                               │
-                                                      └─ /api/*  → upstream           │
-                                                                   127.0.0.1:3000     │
-                                                                        │             │
-                                                      PM2 (modo cluster, 1 réplica    │
-                                                      por vCPU) → backend/dist/index.js
-                                                                        │             │
-                         └──────────────────────────────────────────────┼─────────────┘
-                                                                        ▼
-                                                               MongoDB Atlas (externo)
+                    ┌──────────── Azure Static Web Apps (plan Free) ────────────┐
+                    │  https://blue-sand-076769b1e.1.azurestaticapps.net         │
+Navegador ──(1)────►│  index.html · main-*.js · styles-*.css (build de Angular)  │
+    │               └────────────────────────────────────────────────────────────┘
+    │
+    │ (2) fetch https://empleados-miguel.duckdns.org/api/v1/...   (CORS)
+    ▼
+┌──────────────────────────────── AWS EC2 (Ubuntu) ─────────────────────────────────┐
+│ Security Group: 80 · 443 · 22 (solo mi IP)          IP elástica 18.116.22.239     │
+│                                                                                   │
+│  Nginx :443 (Let's Encrypt) ── /api/* ──► upstream 127.0.0.1:3000                 │
+│  Nginx :80  → 301 a HTTPS                          │                              │
+│                                        PM2 cluster (2 réplicas) → dist/index.js   │
+│                                        + pm2-discord + pm2-logrotate              │
+└────────────────────────────────────────────────────┼──────────────────────────────┘
+                                                     ▼
+                                            MongoDB Atlas (externo)
+
+CI/CD:  git push main ──► GitHub Actions ──► Azure (frontend)
+        pm2 deploy ecosystem.config.cjs production ──► EC2 (backend)
 ```
 
 **Por qué así**
 
-- **Nginx** es el único proceso expuesto a Internet. Sirve el frontend compilado directamente desde disco (sin pasar por Node) y reenvía `/api/*` al backend.
-- **PM2 en modo cluster** levanta una réplica de Express por núcleo y reparte las conexiones entre ellas. Si una réplica cae, PM2 la reinicia.
-- **El puerto 3000 no se abre en el Security Group**: el backend solo es accesible desde el propio servidor, a través de Nginx.
-- **La base de datos está fuera de la EC2** (MongoDB Atlas), como recomienda la práctica: si la instancia se satura o se reemplaza, los datos no se pierden.
-- **Frontend y API comparten origen** (`http://IP/` y `http://IP/api`), así que no hay problemas de CORS ni direcciones codificadas.
+- **Azure solo entrega archivos estáticos.** Las llamadas a la API no pasan por Azure: el JavaScript de Angular se ejecuta en el navegador del usuario y llama directamente a la EC2. Por eso basta el plan Free de *Static Web Apps* y no hace falta *App Service*.
+- **La API necesita HTTPS.** Una página servida por HTTPS (Azure) no puede llamar a una API por HTTP: el navegador lo bloquea (*mixed content*). Let's Encrypt no emite certificados para una IP, así que se usa un subdominio gratuito de DuckDNS.
+- **CORS limitado.** Frontend y API están en dominios distintos; el backend solo responde con `Access-Control-Allow-Origin` al dominio de Azure y a `localhost:4200`.
+- **Nginx** es el único proceso de la EC2 expuesto a Internet: termina TLS y reenvía `/api/*` al backend. El resto de rutas devuelve 404.
+- **PM2 en modo cluster** levanta una réplica de Express por vCPU, reparte las conexiones y reinicia las que caen.
+- **El puerto 3000 no se abre** en el Security Group.
+- **La base de datos está fuera de la EC2** (Atlas), como recomienda la práctica.
 
 ---
 
 ## 1. Qué se adaptó en el repositorio
 
-La práctica asume una app Node.js con un `index.js` en la raíz. Este repo es un monorepo TypeScript (`backend/` + `frontend/`), así que se hicieron estos ajustes:
+La práctica asume una app Node.js con `index.js` en la raíz. Este repo es un monorepo TypeScript (`backend/` + `frontend/`), así que se hicieron estos ajustes:
 
 | Archivo | Cambio | Motivo |
 |---|---|---|
-| `backend/tsconfig.build.json` | Nuevo. Compila `src/` → `dist/` excluyendo los `*.spec.ts`. | El modo cluster de PM2 ejecuta los workers con `node`; no puede usar `tsx` como intérprete. Se necesita JavaScript compilado. |
-| `backend/package.json` | Scripts `build` (`tsc -p tsconfig.build.json`) y `start` (`node --env-file=.env dist/index.js`). | Compilación y arranque de producción. |
-| `backend/src/docs/openapi.ts` | `servers` pasa a `/api/v1` (relativo). | Para que “Try it out” de Swagger funcione detrás de Nginx. |
-| `frontend/src/app/services/employee.service.ts` | La URL de la API pasa de `http://127.0.0.1:3000/api/v1/empleados` a `/api/v1/empleados`. | En producción, `127.0.0.1` apuntaría a la máquina del **usuario**, no al servidor. |
-| `frontend/proxy.conf.json` + `frontend/angular.json` | `ng serve` redirige `/api` a `http://127.0.0.1:3000`. | El desarrollo local sigue funcionando igual con `npm start`. |
-| `frontend/src/app/services/employee.service.spec.ts` | La constante de la URL se actualizó. | Las 28 pruebas siguen pasando. |
-| `ecosystem.config.cjs` | Nuevo, en la raíz. App en modo cluster + bloque `deploy.production`. | Configuración de PM2 y PM2 Deploy. Es `.cjs` porque `backend/package.json` declara `"type": "module"`. |
-| `deploy/nginx.conf` | Nuevo. Configuración del sitio para Nginx. | Se copia a `/etc/nginx/sites-available/default` en el servidor. |
+| `backend/tsconfig.build.json` | Compila `src/` → `dist/` sin los `*.spec.ts`. | El modo cluster de PM2 ejecuta los workers con `node`; no admite `tsx` como intérprete. |
+| `backend/package.json` | Scripts `build` y `start`. | Compilación y arranque de producción. |
+| `backend/src/app.ts` | `cors({ origin: [dominio de Azure, localhost:4200] })`. | Solo el frontend propio puede consumir la API desde un navegador. |
+| `backend/src/docs/openapi.ts` | `servers: /api/v1` (relativo). | “Try it out” de Swagger funciona detrás de Nginx. |
+| `frontend/src/environments/environment.ts` | `apiUrl: 'https://empleados-miguel.duckdns.org/api/v1'`. | URL de la API en producción (Azure). |
+| `frontend/src/environments/environment.development.ts` + `angular.json` (`fileReplacements`) | `apiUrl: '/api/v1'` en desarrollo. | `ng serve` sigue usando el backend local. |
+| `frontend/proxy.conf.json` + `angular.json` (`proxyConfig`) | `ng serve` reenvía `/api` a `http://127.0.0.1:3000`. | Desarrollo local sin CORS. |
+| `frontend/src/app/services/employee.service.ts` (+ spec) | Usa `environment.apiUrl`. | Una sola fuente para la URL; las 28 pruebas pasan. |
+| `frontend/public/staticwebapp.config.json` | `navigationFallback` a `index.html`. | Una ruta profunda de la SPA no da 404 en Azure. |
+| `.github/workflows/azure-static-web-apps-*.yml` | Generado por Azure; ajustado para compilar con Node 24 (`setup-node`) y subir el build (`skip_app_build`). | Angular 22 exige Node ≥ 24.15 y el compilador de Azure (Oryx) no siempre lo tiene. |
+| `ecosystem.config.cjs` | App en modo cluster + `deploy.production`. | PM2 y PM2 Deploy. Es `.cjs` porque `backend/package.json` declara `"type": "module"`. |
+| `deploy/nginx.conf` | Configuración final de Nginx (solo `/api`, HTTPS). | Copia de `/etc/nginx/sites-available/default`. |
 
-> **Secretos:** `ecosystem.config.cjs` **no** contiene la URI de Atlas. Esta vive únicamente en el servidor, en `/var/www/empleados/shared/.env`, y en cada despliegue se enlaza como `backend/.env`. Por eso el ecosistema se puede subir a GitHub sin riesgo.
+> **Secretos:** ni `ecosystem.config.cjs` ni el repo contienen la URI de Atlas, el webhook de Discord ni el token de DuckDNS. La URI vive solo en el servidor (`/var/www/empleados/shared/.env`) y en cada despliegue se enlaza como `backend/.env`.
 
-> **Archivo sobrante:** `module.js` (borrador anterior del ecosistema) ya no se usa y puede eliminarse.
-
-### Comprobación local antes de desplegar
+### Comprobación local antes de desplegar (en tu Mac)
 
 ```bash
-cd backend  && npm run build && ls dist/index.js && rm -rf dist && cd ..
-cd frontend && npm run build && ls dist/frontend/browser/index.html && rm -rf dist && cd ..
-cd frontend && npx ng test --watch=false && cd ..        # 28 pruebas en verde
+cd backend  && npm run build && npm test && rm -rf dist && cd ..      # 53 pruebas
+cd frontend && npx ng test --watch=false && npx ng build && rm -rf dist && cd ..   # 28 pruebas
 ```
 
 ---
@@ -95,121 +108,100 @@ cd frontend && npx ng test --watch=false && cd ..        # 28 pruebas en verde
 
 ### 1.1 Grupo de seguridad (firewall)
 
-1. Consola de AWS → **EC2 → Instancias** → selecciona tu instancia.
-2. Pestaña **Seguridad** → clic en el **Grupo de seguridad**.
-3. **Editar reglas de entrada** y deja exactamente estas:
+1. Consola de AWS → **EC2 → Instancias** → selecciona la instancia → pestaña **Seguridad** → clic en el **Grupo de seguridad**.
+2. **Editar reglas de entrada** y deja exactamente estas:
 
    | Tipo | Puerto | Origen | Motivo |
    |---|---|---|---|
-   | HTTP | 80 | `0.0.0.0/0` (Anywhere-IPv4) | Tráfico web |
-   | HTTPS | 443 | `0.0.0.0/0` (Anywhere-IPv4) | Tráfico web cifrado (futuro) |
+   | HTTP | 80 | `0.0.0.0/0` | Validación de Let's Encrypt y redirección a HTTPS |
+   | HTTPS | 443 | `0.0.0.0/0` | API cifrada |
    | SSH | 22 | **Mi IP** | Administración y PM2 Deploy |
 
-4. **Elimina** cualquier regla del puerto `3000` que haya quedado de la práctica PW15.
-5. Guarda las reglas.
+3. **Elimina** cualquier regla del puerto `3000` que haya quedado de la práctica PW15 y guarda.
 
-> Si tu IP de casa cambia (por ejemplo, al reiniciar el router), el SSH dejará de conectar. Vuelve a esta pantalla y actualiza la regla 22 con **Mi IP**.
+> Si tu IP de casa cambia, el SSH dejará de conectar (`Connection timed out`): vuelve aquí y actualiza la regla 22 con **Mi IP**.
 
 ### 1.2 IP elástica (IP fija)
 
-Sin IP elástica, AWS cambia la IP pública cada vez que la instancia se detiene y arranca, y se rompen tanto el `host` de PM2 Deploy como la regla de Atlas.
-
-1. **EC2 → Red y seguridad → IP elásticas**.
-2. Si `18.116.22.239` ya aparece en la lista asociada a tu instancia, ya está hecho; pasa a 1.3.
-3. Si no: **Asignar la dirección IP elástica → Asignar**.
-4. Selecciónala → **Acciones → Asociar la dirección IP elástica** → elige tu instancia → **Asociar**.
-5. Si la IP nueva es distinta de `18.116.22.239`, actualiza el campo `host` de `ecosystem.config.cjs` y usa la nueva IP en el resto de la guía.
+1. **EC2 → Red y seguridad → IP elásticas → Asignar la dirección IP elástica → Asignar**.
+2. Selecciónala → **Acciones → Asociar la dirección IP elástica** → tu instancia → **Asociar**.
+3. Anota la IP (`18.116.22.239`). Si fuera otra, cámbiala en `ecosystem.config.cjs` (`host`), en Atlas y en DuckDNS.
 
 ### 1.3 Permitir la IP del servidor en MongoDB Atlas
 
-1. Atlas → tu proyecto → **Security → Network Access → Add IP Address**.
-2. Introduce `18.116.22.239/32` (tu IP elástica) y una descripción, por ejemplo `EC2 produccion`.
-3. **Confirm** y espera a que el estado pase a *Active*.
-
-> Si falta este paso, el backend arranca, no consigue conectar, ejecuta `process.exit(1)` (ver `connection.ts`) y Nginx devuelve **502 Bad Gateway**.
-
-4. Ten a mano la cadena de conexión: **Database → Connect → Drivers**, del tipo:
+1. Atlas → **Security → Network Access → Add IP Address** → `18.116.22.239/32` → **Confirm**. Espera a que aparezca *Active*.
+2. Copia la cadena de conexión (**Database → Connect → Drivers**):
    ```
-   mongodb+srv://USUARIO:PASSWORD@cluster0.xxxxx.mongodb.net/usuarios_db?retryWrites=true&w=majority
+   mongodb+srv://USUARIO:PASSWORD@cluster0.xxxxx.mongodb.net/usuarios_db?appName=Cluster0
    ```
+
+> Sin este paso el backend no conecta, ejecuta `process.exit(1)` (ver `connection.ts`) y Nginx devuelve **502**. El log lo dice claramente: `MongooseServerSelectionError: ... IP that isn't whitelisted`.
 
 ---
 
 ## Fase 2 · Preparar el servidor
 
-### 2.1 Conectarse por SSH (desde tu Mac)
+### 2.1 Acceso SSH desde tu Mac
+
+La instancia se creó con un par de llaves `.pem`, pero si no la tienes (o entras por *EC2 Instance Connect* en el navegador), autoriza la llave SSH de tu Mac. En el **servidor**:
 
 ```bash
-chmod 400 ~/.ssh/TU-LLAVE-AWS.pem
-ssh -i ~/.ssh/TU-LLAVE-AWS.pem ubuntu@18.116.22.239
+echo 'ssh-ed25519 AAAA...contenido de ~/.ssh/id_ed25519.pub de tu Mac...' >> ~/.ssh/authorized_keys
+chmod 700 ~/.ssh && chmod 600 ~/.ssh/authorized_keys
 ```
+
+Hazlo como usuario `ubuntu`, sin `sudo`. En la **Mac**:
+
+```bash
+ssh -i ~/.ssh/id_ed25519 ubuntu@18.116.22.239 "echo conectado"
+```
+
+> La primera conexión pregunta si confías en el host: responde `yes`. Si se ejecuta sin terminal interactiva (por ejemplo, con el prefijo `!`), falla con `Host key verification failed`; en ese caso añade `-o StrictHostKeyChecking=accept-new`.
 
 Todo lo que sigue en esta fase se ejecuta **en el servidor**.
 
-### 2.2 Actualizar el sistema
+### 2.2 Sistema, Node.js 24, Git y herramientas de compilación
 
 ```bash
 sudo apt update && sudo apt upgrade -y
-```
 
-Si aparece una pantalla preguntando por reiniciar servicios, acepta con Enter.
-
-### 2.3 Node.js 24 LTS y npm
-
-El proyecto exige **Node 24+** (usa `--env-file` y lo indica el README).
-
-```bash
 curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
-sudo apt install -y nodejs
+sudo apt install -y nodejs git build-essential
 node -v      # v24.x
 npm -v
 ```
 
-> **No ejecutes `sudo apt install npm`**: el paquete `nodejs` de NodeSource ya trae npm, y el `npm` de Ubuntu entra en conflicto con él.
+> **No ejecutes `sudo apt install npm`**: el paquete `nodejs` de NodeSource ya incluye npm. Con un Node menor a 20.6, el backend no arranca porque no existe `--env-file`.
 
-### 2.4 Git y herramientas de compilación
+### 2.3 Memoria swap
 
-```bash
-sudo apt install -y git build-essential
-git --version
-```
-
-### 2.5 Memoria swap (imprescindible en t2.micro/t3.micro)
-
-`ng build` puede consumir más de 1 GB de RAM y, sin swap, el proceso muere con `Killed` o `JavaScript heap out of memory`.
+Una instancia pequeña se queda sin RAM al instalar dependencias o compilar:
 
 ```bash
-free -h                                   # mira la memoria actual
-sudo fallocate -l 2G /swapfile
-sudo chmod 600 /swapfile
-sudo mkswap /swapfile
-sudo swapon /swapfile
-echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab   # persistente tras reinicio
-free -h                                   # ahora debe aparecer Swap: 2.0Gi
+sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile
+sudo mkswap /swapfile && sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+free -h        # Swap: 2.0Gi
 ```
 
-### 2.6 Nginx
+### 2.4 Nginx
 
 ```bash
 sudo apt install -y nginx
 sudo systemctl enable --now nginx
-sudo systemctl status nginx               # active (running); sal con q
 ```
 
-Abre `http://18.116.22.239` en el navegador: debe aparecer **“Welcome to nginx!”**.
+`http://18.116.22.239` debe mostrar **“Welcome to nginx!”**.
 
-### 2.7 Firewall de Ubuntu (UFW, opcional)
+### 2.5 Firewall de Ubuntu (UFW, opcional)
 
-El Security Group ya filtra el tráfico; UFW añade una segunda capa. **Permite OpenSSH antes de activarlo** o perderás el acceso a la instancia.
+**Permite OpenSSH antes de activarlo** o perderás el acceso:
 
 ```bash
-sudo ufw allow OpenSSH
-sudo ufw allow 'Nginx Full'               # 80 y 443
-sudo ufw enable                           # responde y
-sudo ufw status
+sudo ufw allow OpenSSH && sudo ufw allow 'Nginx Full' && sudo ufw enable
 ```
 
-### 2.8 PM2 global
+### 2.6 PM2 global
 
 ```bash
 sudo npm install -g pm2
@@ -220,31 +212,20 @@ pm2 -v
 
 ## Fase 3 · Vincular el servidor con GitHub y preparar carpetas
 
-### 3.1 Deploy key (el servidor debe poder hacer `git clone`)
-
-En el **servidor**:
+### 3.1 Llave del servidor para GitHub
 
 ```bash
-ssh-keygen -t ed25519 -C "servidor-produccion"
-# Pulsa Enter en todas las preguntas (ruta por defecto, sin passphrase)
+ssh-keygen -t ed25519 -C "servidor-produccion"     # Enter en todas las preguntas
 cat ~/.ssh/id_ed25519.pub
 ```
 
-Copia la línea completa (`ssh-ed25519 AAAA... servidor-produccion`) y en GitHub:
-
-1. Repositorio **miguesj-hub/practica-mean-unidad2** → **Settings → Deploy keys → Add deploy key**.
-2. *Title*: `EC2 produccion`. *Key*: pega la llave. **No** marques *Allow write access*.
-3. **Add key**.
-
-Valida la conexión desde el servidor:
+En GitHub: repositorio → **Settings → Deploy keys → Add deploy key** → pega la llave (sin *write access*). Valida:
 
 ```bash
-ssh -T git@github.com
-# Are you sure you want to continue connecting (yes/no)? → yes
-# Hi miguesj-hub/practica-mean-unidad2! You've successfully authenticated...
+ssh -T git@github.com       # yes → "Hi miguesj-hub/...! You've successfully authenticated"
 ```
 
-### 3.2 Carpeta de despliegue y permisos
+### 3.2 Carpetas y permisos
 
 ```bash
 sudo mkdir -p /var/www/empleados
@@ -252,57 +233,46 @@ sudo chown -R ubuntu:ubuntu /var/www/empleados
 mkdir -p /var/www/empleados/shared /var/www/empleados/logs
 ```
 
-PM2 Deploy creará dentro esta estructura:
+Estructura que genera PM2 Deploy:
 
 ```
 /var/www/empleados/
-├── source/     ← clon del repositorio (lo crea "pm2 deploy ... setup")
-├── current  →  source (enlace simbólico que usa Nginx y PM2)
-├── shared/     ← archivos que sobreviven entre despliegues (.env)
-└── logs/       ← err.log y out.log del backend
+├── source/     ← clon del repositorio
+├── current  →  source
+├── shared/     ← .env (sobrevive entre despliegues)
+└── logs/       ← err.log y out.log
 ```
 
-### 3.3 Variables de entorno de producción (secreto)
+> No hace falta un `git clone` ni un `npm i` manual (apartado 3.3 del PDF): `pm2 deploy` hace ambas cosas. Un clon manual dentro de `/var/www/empleados` no se usa y solo confunde.
+
+### 3.3 Variables de entorno (secreto)
 
 ```bash
 nano /var/www/empleados/shared/.env
 ```
 
-Contenido (con tu cadena real de Atlas):
-
 ```dotenv
-MONGO_URI=mongodb+srv://USUARIO:PASSWORD@cluster0.xxxxx.mongodb.net/usuarios_db?retryWrites=true&w=majority
+MONGO_URI=mongodb+srv://USUARIO:PASSWORD@cluster0.xxxxx.mongodb.net/usuarios_db?appName=Cluster0
 ```
-
-Guarda con `Ctrl+O`, Enter, `Ctrl+X`. Luego:
 
 ```bash
 chmod 600 /var/www/empleados/shared/.env
 ```
 
-> `PORT` y `NODE_ENV` los define PM2 (`env_production` en `ecosystem.config.cjs`). Si la contraseña tiene caracteres especiales (`@`, `:`, `/`, `#`…), codifícalos en la URI (por ejemplo, `@` → `%40`).
-
-> No hace falta el `git clone` ni el `npm i` manual del apartado 3.3 del PDF: `pm2 deploy` clona, instala y compila automáticamente.
+> Sin comillas ni espacios alrededor de `=`. Si la contraseña tiene `@ : / # ? %`, codifícalos (`@` → `%40`). `PORT` y `NODE_ENV` los pone PM2.
 
 ---
 
 ## Fase 4 · Nginx como proxy inverso
 
-### 4.1 Configurar el sitio por defecto
-
-En el **servidor**:
+Configuración inicial, **solo HTTP**, antes de la Fase 7 (Certbot añadirá después el bloque 443):
 
 ```bash
-sudo cp /etc/nginx/sites-available/default /etc/nginx/sites-available/default.bak   # respaldo
+sudo cp /etc/nginx/sites-available/default /etc/nginx/sites-available/default.bak
 sudo nano /etc/nginx/sites-available/default
 ```
 
-Borra todo el contenido (`Ctrl+K` repetidamente) y pega el de [`deploy/nginx.conf`](deploy/nginx.conf):
-
 ```nginx
-# /etc/nginx/sites-available/default
-# Nginx sirve el build de Angular y hace de proxy inverso hacia el cluster PM2.
-
 upstream backend_empleados {
     server 127.0.0.1:3000;
     keepalive 32;
@@ -311,10 +281,7 @@ upstream backend_empleados {
 server {
     listen 80 default_server;
     listen [::]:80 default_server;
-    server_name _;
-
-    root /var/www/empleados/current/frontend/dist/frontend/browser;
-    index index.html;
+    server_name empleados-miguel.duckdns.org;
 
     # API REST y Swagger (/api/v1/..., /api/docs)
     location /api/ {
@@ -327,46 +294,40 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
-    # SPA de Angular: cualquier ruta desconocida vuelve a index.html
+    # El frontend vive en Azure: aquí no se sirve nada más
     location / {
-        try_files $uri $uri/ /index.html;
+        return 404;
     }
 }
 ```
 
 | Bloque | Qué hace |
 |---|---|
-| `upstream backend_empleados` | Define el destino del proxy (el cluster PM2 en `127.0.0.1:3000`) y mantiene conexiones reutilizables con `keepalive`. Para añadir más backends bastaría con más líneas `server`. |
-| `root …/browser` | Carpeta donde `ng build` deja el frontend compilado. |
-| `location /api/` | Todo lo que empieza por `/api/` va a Express: la API (`/api/v1/empleados`) y Swagger (`/api/docs`). |
-| `location /` | Sirve archivos de Angular; si no existen, devuelve `index.html` (necesario en una SPA). |
+| `upstream backend_empleados` | Destino del proxy (cluster PM2 en `127.0.0.1:3000`) con conexiones reutilizables. Para balancear entre más servidores bastaría con añadir líneas `server`. |
+| `location /api/` | La API (`/api/v1/empleados`) y Swagger (`/api/docs`) van a Express. |
+| `location /` | 404: la EC2 ya no sirve el frontend. |
 | Cabeceras `X-*` | Pasan al backend la IP real del cliente y el protocolo original. |
 
-### 4.2 Validar y recargar
-
 ```bash
-sudo nginx -t                    # syntax is ok / test is successful
-sudo systemctl reload nginx
+sudo nginx -t && sudo systemctl reload nginx
 ```
 
-> Hasta que termine el primer despliegue, la carpeta `current/` no existe y Nginx responderá **404/500**. Es lo esperado.
+La versión final, con HTTPS, está en [`deploy/nginx.conf`](deploy/nginx.conf).
 
-### Comandos útiles de Nginx
+Comandos útiles:
 
 ```bash
-sudo systemctl stop nginx        # detener
-sudo systemctl start nginx       # iniciar
-sudo systemctl reload nginx      # recargar configuración sin cortar conexiones
+sudo systemctl reload nginx                          # recarga sin cortar conexiones
 sudo tail -f /var/log/nginx/access.log /var/log/nginx/error.log
 ```
 
 ---
 
-## Fase 5 · PM2 y despliegue automatizado (CI/CD)
+## Fase 5 · PM2 y despliegue automatizado del backend (CI/CD)
 
 ### 5.1 El archivo de ecosistema
 
-[`ecosystem.config.cjs`](ecosystem.config.cjs), en la raíz del repo:
+[`ecosystem.config.cjs`](ecosystem.config.cjs):
 
 ```js
 const path = require('node:path');
@@ -378,7 +339,7 @@ module.exports = {
       name: 'gestion-empleados',
       cwd: path.join(__dirname, 'backend'),
       script: 'dist/index.js',
-      // ruta absoluta: los workers del cluster no heredan el cwd de la app
+      // Ruta absoluta: los workers del cluster no heredan el cwd de la app
       node_args: `--env-file=${path.join(__dirname, 'backend', '.env')}`,
       instances: 'max',               // modo cluster: una réplica por vCPU
       exec_mode: 'cluster',
@@ -396,203 +357,224 @@ module.exports = {
       ref: 'origin/main',
       repo: 'git@github.com:miguesj-hub/practica-mean-unidad2.git',
       path: APP_DIR,
-      'post-deploy': [ /* ver abajo */ ].join(' && '),
-      ssh_options: 'IdentityFile=~/.ssh/TU-LLAVE-AWS.pem'
+      'post-deploy': [ /* ver tabla */ ].join(' && '),
+      ssh_options: 'IdentityFile=~/.ssh/id_ed25519'
     }
   }
 };
 ```
 
-El `post-deploy` se ejecuta **en el servidor**, dentro de `current/`, después de cada `git pull`:
+`post-deploy` se ejecuta **en el servidor**, dentro de `current/`, tras cada `git pull`:
 
 | # | Comando | Para qué |
 |---|---|---|
-| 1 | `mkdir -p /var/www/empleados/logs` | Asegura la carpeta de logs. |
+| 1 | `mkdir -p /var/www/empleados/logs` | Carpeta de logs. |
 | 2 | `ln -sf /var/www/empleados/shared/.env backend/.env` | Enlaza el secreto sin versionarlo. |
-| 3 | `npm ci --prefix backend` | Instala las dependencias exactas del `package-lock.json`. |
-| 4 | `npm run build --prefix backend` | Compila TypeScript → `backend/dist/`. |
-| 5 | `npm ci --prefix frontend` | Dependencias del frontend. |
-| 6 | `NG_CLI_ANALYTICS=false npm run build --prefix frontend` | Compila Angular → `frontend/dist/frontend/browser/`. |
-| 7 | `pm2 reload ecosystem.config.cjs --env production` | Arranca el cluster o lo recarga réplica a réplica (sin caída del servicio). |
-| 8 | `pm2 save` | Guarda la lista de procesos para restaurarla tras un reinicio. |
+| 3 | `npm ci --prefix backend` | Dependencias exactas del lockfile. |
+| 4 | `npm run build --prefix backend` | TypeScript → `backend/dist/`. |
+| 5 | `pm2 reload ecosystem.config.cjs --env production` | Arranca o recarga réplica a réplica (sin caída). |
+| 6 | `pm2 save` | Guarda la lista de procesos para restaurarla tras un reinicio. |
 
-### 5.2 Ajustar la llave SSH local
+> El frontend ya no se compila en la EC2: lo hace GitHub Actions para Azure (Fase 8).
 
-En tu **Mac**, edita `ecosystem.config.cjs` y cambia:
+### 5.2 Subir cambios y desplegar (en tu Mac)
 
-```js
-ssh_options: 'IdentityFile=~/.ssh/TU-LLAVE-AWS.pem'
-```
-
-por la ruta real de tu `.pem` (la **privada** que descargaste al crear la instancia, **no** un archivo `.pub`). Comprueba que conecta:
+PM2 Deploy despliega lo que hay en `origin/main`, **no** tu copia local.
 
 ```bash
-ssh -i ~/.ssh/TU-LLAVE-AWS.pem ubuntu@18.116.22.239 "echo conectado"
-```
-
-### 5.3 Subir los cambios a GitHub
-
-En tu **Mac**, desde la raíz del repo. Añade los archivos de forma explícita: `git add .` incluiría cambios que no pertenecen al despliegue (por ejemplo, el borrado de `INFORME-PRUEBAS.docx`).
-
-```bash
-cd ~/dev/code-p3
-git status
-git add DESPLIEGUE.md ecosystem.config.cjs deploy/ \
-        backend/package.json backend/tsconfig.build.json backend/src/docs/openapi.ts \
-        frontend/angular.json frontend/proxy.conf.json frontend/src/app/services/
-git commit -m "feat: configuración de despliegue con PM2 y Nginx"
-git push origin main
-```
-
-> PM2 Deploy despliega lo que hay en `origin/main`, **no** tu copia local. Todo cambio debe estar en GitHub antes de desplegar.
-
-### 5.4 Instalar PM2 en local
-
-```bash
-npm install -g pm2
-pm2 -v
-```
-
-### 5.5 Primer despliegue
-
-En tu **Mac**, en la raíz del repo:
-
-```bash
-# 1. Crea /var/www/empleados/{source,shared,current} y clona el repositorio en el servidor
-pm2 deploy ecosystem.config.cjs production setup
-
-# 2. git pull + post-deploy (instala, compila y levanta el cluster)
-pm2 deploy ecosystem.config.cjs production
-```
-
-El segundo comando tarda unos minutos la primera vez (dos `npm ci` y el build de Angular). Al final debe terminar con `--> Success`.
-
-### 5.6 Verificar en el servidor
-
-```bash
-pm2 list
-```
-
-Debe mostrar `gestion-empleados` con modo `cluster`, estado `online` y tantas filas como vCPU tenga la instancia.
-
-```bash
-pm2 logs gestion-empleados --lines 30
-# Busca: 🔄 [Database]: Conexión exitosa a MongoDB ...
-#        Servidor escuchando en el puerto 3000
-
-curl -s http://127.0.0.1:3000/api/v1/empleados    # respuesta JSON directa del backend
-curl -s http://127.0.0.1/api/v1/empleados         # la misma respuesta, pasando por Nginx
-```
-
-### 5.7 Arranque automático tras reiniciar la instancia
-
-En el **servidor**:
-
-```bash
-pm2 startup systemd
-# Imprime una línea que empieza por "sudo env PATH=..." → cópiala y ejecútala
-pm2 save
-```
-
-Prueba: `sudo reboot`, espera un minuto, vuelve a conectar y ejecuta `pm2 list`. La app debe estar `online` sin haber hecho nada.
-
-### 5.8 Despliegues siguientes (flujo CI/CD)
-
-```bash
-# en tu Mac
+npm install -g pm2                                    # solo la primera vez
 git add <archivos> && git commit -m "..." && git push origin main
-pm2 deploy ecosystem.config.cjs production
+
+pm2 deploy ecosystem.config.cjs production setup      # solo la primera vez: clona en source/
+pm2 deploy ecosystem.config.cjs production            # cada despliegue
 ```
 
-Otros comandos de PM2 Deploy:
+Termina con `--> Success`.
+
+### 5.3 Verificar (en el servidor)
 
 ```bash
-pm2 deploy ecosystem.config.cjs production revert 1      # vuelve al commit anterior
-pm2 deploy ecosystem.config.cjs production curr          # commit desplegado actualmente
-pm2 deploy ecosystem.config.cjs production exec "pm2 list"   # ejecuta un comando remoto
+pm2 list                                   # gestion-empleados ×2, cluster, online
+pm2 logs gestion-empleados --lines 20      # "Conexión exitosa a MongoDB" + "Servidor escuchando en el puerto 3000"
+curl -s http://127.0.0.1:3000/api/v1/empleados
+```
+
+### 5.4 Arranque automático tras reiniciar la instancia
+
+```bash
+pm2 startup systemd        # ejecuta la línea "sudo env PATH=..." que imprime
+pm2 save
+systemctl is-enabled pm2-ubuntu            # enabled
+```
+
+### 5.5 Otros comandos de PM2 Deploy (Mac)
+
+```bash
+pm2 deploy ecosystem.config.cjs production revert 1         # vuelve al commit anterior
+pm2 deploy ecosystem.config.cjs production curr             # commit desplegado
+pm2 deploy ecosystem.config.cjs production exec "pm2 list"  # comando remoto
 ```
 
 ---
 
 ## Fase 6 · Monitorización, alertas y rotación de logs
 
-### 6.1 Crear el webhook de Slack
+### 6.1 Webhook de Discord
 
-1. Entra en el **Slack App Directory** e inicia sesión en tu espacio de trabajo.
-2. Busca **Incoming WebHooks → Añadir a Slack**.
-3. Elige o crea el canal, por ejemplo `#alertas-servidor`.
-4. **Añadir integración con Incoming WebHooks**.
-5. Copia la **URL de Webhook** (`https://hooks.slack.com/services/...`).
+Se eligió Discord porque no requiere instalar ninguna app en un espacio de trabajo:
 
-> Con Discord: *Ajustes del canal → Integraciones → Webhooks → Nuevo webhook → Copiar URL*.
+1. Discord → tu servidor (o crea uno con **+** → *Crear el mío*) → canal `#alertas-servidor`.
+2. **⚙️ Editar canal → Integraciones → Webhooks → Nuevo webhook → Copiar URL del webhook**.
 
-Antes de configurar PM2, comprueba que el webhook funciona desde el servidor:
+Prueba desde el servidor (debe responder `HTTP 204` y aparecer el mensaje):
 
 ```bash
-curl -X POST -H 'Content-type: application/json' \
-     --data '{"text":"Prueba de webhook desde EC2"}' \
-     "https://hooks.slack.com/services/XXX/YYY/ZZZ"
-# Debe responder "ok" y aparecer el mensaje en el canal
+curl -s -w "HTTP %{http_code}\n" -H "Content-Type: application/json" \
+     -d '{"content":"Prueba de webhook desde EC2"}' "URL_DEL_WEBHOOK"
 ```
 
-### 6.2 Notificaciones automáticas de PM2
+> La URL del webhook es un secreto: quien la tenga puede escribir en el canal. No la subas al repositorio. Si se filtra, bórrala y crea otra.
 
-En el **servidor**. Primero la opción que propone la práctica:
-
-```bash
-sudo npm install pm2-notify -g
-pm2 set pm2-notify:slackUrl "https://hooks.slack.com/services/XXX/YYY/ZZZ"
-# pm2 set pm2-notify:discordUrl "URL_DEL_WEBHOOK_DE_DISCORD"
-pm2 set pm2-notify:events "error,exit"
-pm2 set pm2-notify:apps "gestion-empleados"
-pm2 save --force
-pm2 logs pm2-notify
-```
-
-**Si con esa opción no llegan alertas** (haz la prueba de resiliencia para comprobarlo), usa el módulo `pm2-slack`, que se instala como módulo nativo de PM2:
+### 6.2 Alertas de PM2 (`pm2-discord`)
 
 ```bash
-pm2 install pm2-slack
-pm2 set pm2-slack:slack_url "https://hooks.slack.com/services/XXX/YYY/ZZZ"
-pm2 set pm2-slack:servername "EC2-produccion"
-pm2 set pm2-slack:stop true
-pm2 set pm2-slack:exit true
-pm2 set pm2-slack:error true
-pm2 set pm2-slack:exception true
-pm2 set pm2-slack:restart true
-pm2 save
-```
-
-**Configuración aplicada en este despliegue (Discord con `pm2-discord`):**
-
-```bash
-pm2 install pm2-discord
-pm2 set pm2-discord:discord_url "URL_DEL_WEBHOOK_DE_DISCORD"
+pm2 install pm2-discord               # queda "errored" hasta definir la URL: es normal
+pm2 set pm2-discord:discord_url "URL_DEL_WEBHOOK"
 pm2 set pm2-discord:process_name gestion-empleados
-pm2 set pm2-discord:log false          # no reenviar stdout (morgan escribe una línea por petición)
+pm2 set pm2-discord:log false         # no reenviar stdout (morgan escribe una línea por petición)
 for e in error exception stop exit restart kill online; do pm2 set pm2-discord:$e true; done
 pm2 set pm2-discord:"restart overlimit" true
 pm2 save
 ```
 
-> El módulo arranca en estado `errored` hasta que se define `discord_url`; es normal. La URL del webhook es un secreto: no la subas al repositorio.
+> El PDF propone `pm2-notify`; en este despliegue se usó `pm2-discord`, que se instala como módulo nativo de PM2 (`pm2 install`) y lleva la configuración con `pm2 set`. Para Slack existe el equivalente `pm2-slack` (`pm2 set pm2-slack:slack_url ...`).
 
-### 6.3 Rotación de logs (evita llenar el disco)
+### 6.3 Rotación de logs
 
 ```bash
 pm2 install pm2-logrotate
-pm2 set pm2-logrotate:max_size 10M       # rota cada 10 MB
-pm2 set pm2-logrotate:retain 7           # conserva 7 archivos
-pm2 set pm2-logrotate:compress true      # comprime los rotados
-pm2 conf pm2-logrotate                   # muestra la configuración
+pm2 set pm2-logrotate:max_size 10M
+pm2 set pm2-logrotate:retain 7
+pm2 set pm2-logrotate:compress true
+pm2 conf pm2-logrotate
 ```
 
 ### 6.4 Monitorización en vivo
 
 ```bash
-pm2 monit                 # CPU, memoria y logs por réplica, en tiempo real
+pm2 monit
 pm2 show gestion-empleados
-df -h                     # espacio en disco
+df -h
+```
+
+---
+
+## Fase 7 · Dominio y HTTPS para la API
+
+El frontend de Azure se sirve por HTTPS, así que la API también debe estarlo. Let's Encrypt no emite certificados para IPs ni para `*.compute.amazonaws.com`, por eso se usa un subdominio gratuito.
+
+### 7.1 Subdominio en DuckDNS
+
+1. Entra en https://www.duckdns.org (con GitHub o Google).
+2. Crea el subdominio `empleados-miguel`.
+3. **Ojo:** DuckDNS rellena *current ip* con la IP **de tu casa**. Cámbiala por la IP elástica. La forma más fiable es por URL (desde cualquier equipo):
+   ```bash
+   curl "https://www.duckdns.org/update?domains=empleados-miguel&token=TU_TOKEN&ip=18.116.22.239"
+   # OK
+   ```
+   El token aparece arriba en duckdns.org. No lo subas al repositorio.
+4. Verifica contra los servidores de DuckDNS (no depende de caché):
+   ```bash
+   dig +short empleados-miguel.duckdns.org @ns5.duckdns.org     # 18.116.22.239
+   ```
+
+### 7.2 Certificado con Certbot (en el servidor)
+
+Con Nginx ya configurado con `server_name empleados-miguel.duckdns.org` (Fase 4):
+
+```bash
+sudo apt install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d empleados-miguel.duckdns.org \
+     --non-interactive --agree-tos --register-unsafely-without-email --redirect
+sudo nginx -t
+systemctl is-active certbot.timer       # active → renovación automática
+sudo certbot renew --dry-run            # simulación de renovación
+```
+
+Certbot añade `listen 443 ssl`, los certificados y la redirección 301 de HTTP a HTTPS. El resultado está en [`deploy/nginx.conf`](deploy/nginx.conf). El certificado dura 90 días y `certbot.timer` lo renueva solo.
+
+> A partir de aquí la API se usa siempre por el dominio: `http://18.116.22.239/api/...` devuelve 404 porque ya no coincide con `server_name`.
+
+---
+
+## Fase 8 · Frontend en Azure Static Web Apps
+
+### 8.1 Crear el recurso
+
+Portal de Azure → **Aplicación web estática → Crear**:
+
+| Campo | Valor |
+|---|---|
+| Suscripción | *Azure for Students* |
+| Grupo de recursos | Nuevo, p. ej. `rg-gestion-empleados` |
+| Nombre | `front-empleados` |
+| Plan | **Free** |
+| Región | **East US 2** (o Central US / West Europe; ver nota) |
+| Origen | **GitHub** → `miguesj-hub` → `practica-mean-unidad2` → `main` |
+| Valores preestablecidos | **Angular** |
+| Ubicación de la aplicación | `/frontend` |
+| Ubicación de la API | *(vacío)* |
+| Ubicación de salida | `dist/frontend/browser` |
+
+**Revisar y crear.** Azure hace un commit en el repo con `.github/workflows/azure-static-web-apps-<nombre>.yml` y un secreto `AZURE_STATIC_WEB_APPS_API_TOKEN_...` en GitHub.
+
+> **`RequestDisallowedByAzure`**: la suscripción de estudiante solo permite ciertas regiones. Elige otra región entre las que admite Static Web Apps (East US 2, Central US, West US 2, West Europe, East Asia). Las regiones permitidas se ven en **Directiva → Asignaciones → *Allowed resource deployment regions* → Parámetros**.
+
+### 8.2 Traer el workflow al repo local
+
+```bash
+git pull origin main
+```
+
+### 8.3 Ajustar el workflow (compilar con Node 24)
+
+El compilador de Azure (Oryx) elige su propia versión de Node y puede quedarse por debajo de la que exige Angular 22 (`^24.15`). Por eso el workflow compila Angular con `actions/setup-node` y Azure solo sube el resultado:
+
+```yaml
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build Angular
+        working-directory: frontend
+        run: |
+          npm ci
+          npx ng build
+        env:
+          NG_CLI_ANALYTICS: "false"
+      - name: Build And Deploy
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          # ...
+          app_location: "./frontend/dist/frontend/browser"
+          api_location: ""
+          output_location: ""
+          skip_app_build: true
+```
+
+### 8.4 URL de la API y CORS
+
+- `frontend/src/environments/environment.ts` → `apiUrl: 'https://empleados-miguel.duckdns.org/api/v1'`.
+- `backend/src/app.ts` → `cors({ origin: [/^https:\/\/blue-sand-076769b1e(-\d+)?\.(\w+\.)?\d\.azurestaticapps\.net$/, 'http://localhost:4200'] })`. La expresión regular también admite los entornos de vista previa que Azure crea para cada pull request.
+
+Tras cambiar el CORS hay que desplegar el backend (`pm2 deploy ecosystem.config.cjs production`).
+
+### 8.5 Flujo CI/CD del frontend
+
+```bash
+git push origin main          # → GitHub Actions compila Angular y publica en Azure (~1 min)
+gh run list --limit 3         # estado de los despliegues (o pestaña Actions en GitHub)
 ```
 
 ---
@@ -601,75 +583,77 @@ df -h                     # espacio en disco
 
 ### Prueba 1 · Red
 
-| Desde tu navegador | Resultado esperado |
+| URL | Resultado esperado |
 |---|---|
-| `http://18.116.22.239/` | Interfaz de Angular con la lista de empleados, **sin** poner `:3000`. |
-| `http://ec2-18-116-22-239.us-east-2.compute.amazonaws.com/` | Lo mismo. |
-| `http://18.116.22.239/api/v1/empleados` | JSON `{ "success": true, "data": [...] }`. |
-| `http://18.116.22.239/api/docs` | Swagger UI; “Try it out” funciona. |
-| `http://18.116.22.239:3000/` | **No carga** (timeout): el puerto está cerrado al público. |
+| https://blue-sand-076769b1e.1.azurestaticapps.net/ | La app con la lista de empleados (datos desde Atlas). |
+| https://empleados-miguel.duckdns.org/api/v1/empleados | `{ "success": true, "data": [...] }`, candado válido (Let's Encrypt). |
+| https://empleados-miguel.duckdns.org/api/docs/ | Swagger UI; “Try it out” funciona. |
+| http://empleados-miguel.duckdns.org/api/v1/empleados | Redirección 301 a HTTPS. |
+| http://18.116.22.239:3000/ | **No carga** (timeout): el puerto está cerrado. |
 
-También desde terminal:
+Desde terminal:
 
 ```bash
-curl -i http://18.116.22.239/api/v1/empleados
-curl -m 5 http://18.116.22.239:3000/      # debe fallar por timeout
+A=https://empleados-miguel.duckdns.org/api/v1/empleados
+curl -i $A
+curl -m 5 http://18.116.22.239:3000/                                   # timeout
+# CORS: el dominio de Azure recibe la cabecera, uno ajeno no
+curl -si $A -H "Origin: https://blue-sand-076769b1e.1.azurestaticapps.net" | grep -i access-control
+curl -si $A -H "Origin: https://evil.com" | grep -i access-control      # sin salida
 ```
 
-Crea, edita y borra un empleado desde la interfaz para confirmar el CRUD completo contra Atlas.
+Crea, edita y borra un empleado desde la interfaz de Azure para confirmar el CRUD completo. En DevTools (F12 → Red) se ven las peticiones a `empleados-miguel.duckdns.org`.
 
 ### Prueba 2 · Resiliencia (simular una caída)
 
-En el **servidor**:
+En el servidor:
 
 ```bash
-pm2 stop gestion-empleados       # → debe llegar la alerta a Slack/Discord
-pm2 list                         # estado: stopped
-# la web devuelve 502 mientras está detenida
-pm2 start gestion-empleados      # → vuelve a online
+pm2 stop gestion-empleados       # → alertas "stop"/"exit" en Discord (una por réplica)
+pm2 list                         # stopped; la API devuelve 502
+pm2 start gestion-empleados      # → online de nuevo
 ```
 
-Prueba adicional de autorrecuperación del cluster:
+Autorrecuperación del cluster:
 
 ```bash
-pm2 list                          # anota el PID de una réplica
+pm2 list                         # anota el PID de una réplica
 kill -9 <PID>
-pm2 list                          # PM2 la relanza sola (sube el contador ↺)
+pm2 list                         # PM2 la relanza sola (sube el contador ↺)
 ```
 
 ### Prueba 3 · CI/CD
 
-1. En tu Mac, haz un cambio visible, por ejemplo en `frontend/src/app/app.html` (un título o un texto).
-2. `git add frontend/src/app/app.html && git commit -m "feat: cambio visual de prueba" && git push origin main`
-3. `pm2 deploy ecosystem.config.cjs production`
-4. Refresca el navegador (`Cmd+Shift+R`): el cambio aparece **sin haber entrado a la consola de AWS**.
+- **Frontend:** cambia algo visible en `frontend/src/app/app.html` → `git push origin main` → espera a que termine GitHub Actions → refresca la URL de Azure.
+- **Backend:** cambia algo en el backend → `git push origin main` → `pm2 deploy ecosystem.config.cjs production` → comprueba el cambio en la API.
 
-### Prueba 4 · Carga (opcional, reutiliza `stress-test.yml`)
+En ninguno de los dos casos hace falta entrar a la consola de AWS o Azure.
 
-Apunta el `target` de Artillery a la IP pública para comparar con las pruebas locales:
+### Prueba 4 · Carga (opcional)
 
 ```bash
-npx artillery run --target http://18.116.22.239 stress-test.yml
+npx artillery run --target https://empleados-miguel.duckdns.org stress-test.yml
 ```
 
-> `--target` sustituye el `http://127.0.0.1:3000` del archivo; las rutas (`/api/v1/empleados`) no cambian. Con `instances: 'max'`, cada réplica abre su propio pool de 20 conexiones a Atlas (`minPoolSize`); el plan M0 admite 500, así que hay margen de sobra.
+`--target` sustituye el `http://127.0.0.1:3000` del archivo; las rutas (`/api/v1/empleados`) no cambian. Cada réplica abre un pool de 20 conexiones a Atlas (`minPoolSize`); el plan M0 admite 500.
 
 ---
 
 ## Operación diaria
 
-| Acción | Comando (en el servidor salvo que se indique) |
+| Acción | Comando |
 |---|---|
-| Ver procesos | `pm2 list` |
-| Logs en vivo | `pm2 logs gestion-empleados` |
-| Últimas líneas de error | `tail -n 50 /var/www/empleados/logs/err.log` |
-| Reiniciar sin caída | `pm2 reload gestion-empleados` |
-| Parar / arrancar | `pm2 stop gestion-empleados` / `pm2 start gestion-empleados` |
-| Cambiar la URI de Atlas | `nano /var/www/empleados/shared/.env` y luego `pm2 reload gestion-empleados` |
-| Desplegar (Mac) | `pm2 deploy ecosystem.config.cjs production` |
-| Revertir (Mac) | `pm2 deploy ecosystem.config.cjs production revert 1` |
-| Estado de Nginx | `sudo systemctl status nginx` |
-| Logs de Nginx | `sudo tail -f /var/log/nginx/error.log` |
+| Ver procesos (servidor) | `pm2 list` |
+| Logs en vivo (servidor) | `pm2 logs gestion-empleados` |
+| Log del daemon de PM2 (servidor) | `tail -n 30 ~/.pm2/pm2.log` |
+| Reiniciar sin caída (servidor) | `pm2 reload gestion-empleados` |
+| Cambiar la URI de Atlas (servidor) | `nano /var/www/empleados/shared/.env` y luego `pm2 reload gestion-empleados` |
+| Desplegar backend (Mac) | `pm2 deploy ecosystem.config.cjs production` |
+| Revertir backend (Mac) | `pm2 deploy ecosystem.config.cjs production revert 1` |
+| Desplegar frontend (Mac) | `git push origin main` |
+| Estado del frontend (Mac) | `gh run list --limit 3` |
+| Estado de Nginx (servidor) | `sudo systemctl status nginx` |
+| Estado del certificado (servidor) | `sudo certbot certificates` |
 
 ---
 
@@ -677,29 +661,25 @@ npx artillery run --target http://18.116.22.239 stress-test.yml
 
 | Síntoma | Causa probable | Cómo resolverlo |
 |---|---|---|
-| **502 Bad Gateway** en `/` y en `/api` | Nginx aún tiene la configuración del PDF (todo va al 3000) y el backend no corre. | Aplica la Fase 4 con `deploy/nginx.conf` y completa la Fase 5. |
-| **502** solo en `/api/...` | El backend no está `online` o se cae al arrancar. | `pm2 list`, `pm2 logs gestion-empleados --lines 50` y, si no hay logs de la app, `tail -n 30 ~/.pm2/pm2.log`. |
-| Logs: `❌ Error crítico al conectar a la base de datos` / `MongoServerSelectionError` | Atlas no permite la IP de la EC2. | Fase 1.3: añade `18.116.22.239/32` en Network Access. |
-| Logs: `bad auth : authentication failed` | Usuario o contraseña incorrectos en `MONGO_URI`. | Corrige `shared/.env` (codifica los caracteres especiales) y `pm2 reload gestion-empleados`. |
-| `~/.pm2/pm2.log`: `node: .env: not found` y estado `errored` | Falta `shared/.env`, falta el enlace simbólico o `node_args` usa una ruta relativa (en modo cluster se resuelve desde el directorio del daemon). | `ls -l /var/www/empleados/current/backend/.env`; `node_args` debe llevar ruta absoluta, como en el ecosistema del repo. |
-| **404/500** en `/` pero `/api` funciona | No existe el build de Angular. | `ls /var/www/empleados/current/frontend/dist/frontend/browser/`; revisa la salida del deploy. |
-| **403 Forbidden** en `/` | Nginx (`www-data`) no puede leer la carpeta. | `chmod 755 /var/www /var/www/empleados` y `namei -l /var/www/empleados/current/frontend/dist/frontend/browser/index.html`. |
-| El deploy se corta con `Killed` durante `ng build` | Falta memoria. | Fase 2.5 (swap). |
-| `pm2 deploy`: `Permission denied (publickey)` al conectar | Ruta de la `.pem` incorrecta o permisos abiertos. | `chmod 400` a la `.pem` y corrige `ssh_options`. |
-| `pm2 deploy`: `Connection timed out` | Tu IP cambió y la regla SSH ya no coincide. | Actualiza la regla 22 → **Mi IP** en el Security Group. |
-| `pm2 deploy`: `git@github.com: Permission denied` (en el servidor) | Falta la deploy key o no se validó el host. | Fase 3.1 y `ssh -T git@github.com` en el servidor. |
-| `pm2 deploy`: `fatal: destination path ... already exists` | Ya se había ejecutado `setup`. | No repitas `setup`; usa solo `pm2 deploy ecosystem.config.cjs production`. |
-| La web no muestra los cambios tras desplegar | No hiciste `git push` o el navegador usa caché. | `pm2 deploy ... production curr` para ver el commit y `Cmd+Shift+R`. |
-| No llegan alertas a Slack | El módulo de notificaciones no está activo o la URL es incorrecta. | Prueba el webhook con `curl` (6.1) y usa `pm2-slack` (6.2). |
-| La IP cambió tras detener la instancia | No era una IP elástica. | Fase 1.2 y actualiza `host`, Atlas y el Security Group. |
-
-Para ver el despliegue paso a paso en el servidor:
-
-```bash
-cd /var/www/empleados/current
-git log -1 --oneline
-ls backend/dist/index.js frontend/dist/frontend/browser/index.html
-```
+| La app de Azure carga pero **sin datos** (“No se pudo contactar con el servidor”) | API caída, DNS mal, sin HTTPS o CORS. | F12 → Consola/Red. Luego `curl -i https://empleados-miguel.duckdns.org/api/v1/empleados` y las pruebas de CORS de la Prueba 1. |
+| Consola: `Mixed Content ... requested an insecure resource 'http://...'` | `environment.ts` apunta a `http://`. | Usa `https://empleados-miguel.duckdns.org/api/v1` y haz push. |
+| Consola: `blocked by CORS policy: No 'Access-Control-Allow-Origin'` | El origen de Azure no está en `cors({ origin })`. | Revisa `backend/src/app.ts` y despliega el backend. |
+| **502** en `/api/...` | El backend no está `online` o se cae al arrancar. | `pm2 list`, `pm2 logs gestion-empleados --lines 50` y `tail ~/.pm2/pm2.log`. |
+| Log: `MongooseServerSelectionError ... isn't whitelisted` | Atlas no permite la IP de la EC2. | Fase 1.3. |
+| Log: `bad auth : authentication failed` | Usuario o contraseña incorrectos en `MONGO_URI`. | Corrige `shared/.env` y `pm2 reload gestion-empleados`. |
+| `~/.pm2/pm2.log`: `node: .env: not found` y estado `errored` | Falta `shared/.env`, falta el enlace, o `node_args` usa una ruta relativa (en modo cluster se resuelve desde el directorio del daemon). | `ls -l /var/www/empleados/current/backend/.env`; `node_args` debe llevar ruta absoluta. |
+| `npm ERR! Missing script: "build"` en el servidor | El servidor tiene una versión del repo anterior a los cambios, o se ejecutan a mano comandos pensados para la Mac. | Haz push y usa `pm2 deploy`; no compiles a mano en el servidor. |
+| `http://18.116.22.239/` devuelve 404 | Es lo esperado: la EC2 solo expone `/api` por el dominio. | Usa `https://empleados-miguel.duckdns.org/api/...`. |
+| `dig` devuelve la IP de tu casa | DuckDNS guardó la IP del navegador. | `curl "https://www.duckdns.org/update?domains=empleados-miguel&token=...&ip=18.116.22.239"`. |
+| Certbot: `Timeout during connect` / `unauthorized` | El DNS aún no apunta a la EC2 o el puerto 80 está cerrado. | `dig @ns5.duckdns.org` y regla HTTP 80 en el Security Group. |
+| Azure: `RequestDisallowedByAzure` | Región no permitida en la suscripción de estudiante. | Fase 8.1, nota de regiones. |
+| GitHub Actions: `The Angular CLI requires a minimum Node.js version` | Oryx compiló con un Node demasiado antiguo. | Workflow con `setup-node` + `skip_app_build` (Fase 8.3). No declares `engines` en `frontend/package.json`: Oryx lo usaría para elegir un Node inadecuado. |
+| Azure muestra 404 en una ruta profunda | Falta `staticwebapp.config.json`. | Debe estar en `frontend/public/` para que se copie al build. |
+| `pm2 deploy`: `Permission denied (publickey)` | La llave de `ssh_options` no está autorizada en el servidor. | Fase 2.1. |
+| `pm2 deploy`: `Connection timed out` | Tu IP cambió y la regla SSH ya no coincide. | Regla 22 → **Mi IP**. |
+| `pm2 deploy`: `destination path ... already exists` | Ya se había ejecutado `setup`. | No repitas `setup`. |
+| No llegan alertas a Discord | Módulo `errored` o URL incorrecta. | `pm2 list` (sección Modules), prueba el webhook con `curl` (6.1). |
+| El deploy muere con `Killed` | Falta memoria. | Fase 2.3 (swap). |
 
 ---
 
@@ -708,32 +688,19 @@ ls backend/dist/index.js frontend/dist/frontend/browser/index.html
 - [ ] Reglas de entrada del Security Group (80, 443, 22 con Mi IP; sin 3000).
 - [ ] IP elástica asociada a la instancia.
 - [ ] IP de la EC2 en Network Access de Atlas.
-- [ ] `node -v`, `npm -v`, `nginx -v`, `pm2 -v` en el servidor.
-- [ ] Deploy key registrada en GitHub y `ssh -T git@github.com` exitoso.
-- [ ] `sudo nginx -t` correcto y contenido de `/etc/nginx/sites-available/default`.
+- [ ] `node -v`, `nginx -v`, `pm2 -v` en el servidor.
+- [ ] `ssh -T git@github.com` exitoso desde el servidor.
 - [ ] Salida de `pm2 deploy ecosystem.config.cjs production` terminando en `Success`.
-- [ ] `pm2 list` con varias réplicas en modo `cluster`.
-- [ ] Navegador en `http://18.116.22.239/` mostrando la app (sin `:3000`).
-- [ ] Navegador en `http://18.116.22.239:3000/` sin respuesta.
-- [ ] Swagger en `http://18.116.22.239/api/docs`.
-- [ ] Alerta recibida en Slack/Discord tras `pm2 stop gestion-empleados`.
-- [ ] Cambio visual antes y después del flujo CI/CD.
-- [ ] `pm2 conf pm2-logrotate` mostrando la rotación de logs.
+- [ ] `pm2 list` con 2 réplicas en modo `cluster` y los módulos `pm2-discord` y `pm2-logrotate`.
+- [ ] Subdominio de DuckDNS apuntando a `18.116.22.239`.
+- [ ] Salida de Certbot (“Congratulations! You have successfully enabled HTTPS”) y candado en el navegador.
+- [ ] `sudo nginx -t` y contenido final de `/etc/nginx/sites-available/default`.
+- [ ] Recurso Static Web App en el portal de Azure (plan Free).
+- [ ] Ejecución exitosa en GitHub → Actions.
+- [ ] App en `https://blue-sand-076769b1e.1.azurestaticapps.net/` con datos, y DevTools mostrando las llamadas a `empleados-miguel.duckdns.org`.
+- [ ] Swagger en `https://empleados-miguel.duckdns.org/api/docs/`.
+- [ ] `http://18.116.22.239:3000/` sin respuesta.
+- [ ] Alertas en Discord tras `pm2 stop gestion-empleados`.
+- [ ] Cambio visual antes/después del flujo CI/CD (frontend y backend).
+- [ ] `pm2 conf pm2-logrotate`.
 - [ ] `pm2 list` después de `sudo reboot` (arranque automático).
-
----
-
-## Opcional: HTTPS con Certbot
-
-Let's Encrypt **no emite certificados para IPs ni para dominios `*.compute.amazonaws.com`**: necesitas un dominio propio.
-
-1. Crea un registro DNS `A` (por ejemplo `empleados.tudominio.com`) → `18.116.22.239`.
-2. En `/etc/nginx/sites-available/default`, cambia `server_name _;` por `server_name empleados.tudominio.com;` y ejecuta `sudo nginx -t && sudo systemctl reload nginx`.
-3. Instala y ejecuta Certbot:
-   ```bash
-   sudo apt install -y certbot python3-certbot-nginx
-   sudo certbot --nginx -d empleados.tudominio.com
-   sudo certbot renew --dry-run          # comprueba la renovación automática
-   ```
-
-Certbot añade el bloque `listen 443 ssl` y la redirección de HTTP a HTTPS. El puerto 443 ya está abierto desde la Fase 1.
