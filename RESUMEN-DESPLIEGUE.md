@@ -86,7 +86,7 @@ Navegador ──► Azure Static Web Apps (Angular)
 | 7 | 502 en `/` con Nginx. | Seguía la configuración del PDF (todo al puerto 3000). | Configuración propia de Nginx. |
 | 8 | Azure: `RequestDisallowedByAzure`. | La suscripción de estudiante limita las regiones. | Se creó la Static Web App en otra región permitida. |
 | 9 | La UI en Azure (HTTPS) no podía llamar a la API (HTTP). | El navegador bloquea el *mixed content*. | Subdominio DuckDNS + certificado de Let's Encrypt. |
-| 10 | DuckDNS apuntaba a la IP de casa (`149.50.204.252`). | DuckDNS rellena la IP de quien crea el subdominio. | Actualización por URL con `&ip=18.116.22.239`. |
+| 10 | DuckDNS apuntaba a la IP de casa. | DuckDNS rellena la IP de quien crea el subdominio. | Actualización por URL con `&ip=18.116.22.239`. |
 | 11 | El build de Azure falló: Angular exige Node ≥ 24.15. | Oryx eligió Node 24.13 a partir del campo `engines`. | Se quitó `engines`; el workflow compila con `setup-node` y usa `skip_app_build`. |
 | 12 | La raíz del dominio de la API devolvía 404. | Por diseño, la EC2 solo sirve `/api`. | Redirección de `/` a `/api/docs/`. |
 
