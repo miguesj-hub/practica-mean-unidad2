@@ -9,12 +9,13 @@ import {
   Notice,
   nuevoBorrador
 } from '../models/employee.model';
+import { environment } from '../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class EmployeeService {
   private readonly http = inject(HttpClient);
-  // Ruta relativa: en producción Nginx la envía al backend y en desarrollo lo hace proxy.conf.json.
-  private readonly api = '/api/v1/empleados';
+  // La base cambia por entorno: HTTPS de la EC2 en producción, proxy de ng serve en desarrollo.
+  private readonly api = `${environment.apiUrl}/empleados`;
 
   private readonly employeesSubject = new BehaviorSubject<Employee[]>([]);
   private readonly draftSubject = new BehaviorSubject<EmployeeDraft>(nuevoBorrador());

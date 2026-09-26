@@ -16,7 +16,16 @@ app.set('nombreApp', 'Gestión de empleados');
 // middlewares
 app.use(morgan('dev'));
 app.use(express.json());
-app.use(cors());
+app.use(
+  cors({
+    // El frontend vive en Azure Static Web Apps (producción y entornos de PR);
+    // localhost cubre ng serve. Swagger se sirve desde el mismo origen.
+    origin: [
+      /^https:\/\/blue-sand-076769b1e(-\d+)?\.(\w+\.)?\d\.azurestaticapps\.net$/,
+      'http://localhost:4200'
+    ]
+  })
+);
 
 // documentación interactiva (antes del 404 genérico)
 app.get('/api/docs.json', (_req, res) => {

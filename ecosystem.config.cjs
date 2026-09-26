@@ -39,8 +39,6 @@ module.exports = {
         `ln -sf ${APP_DIR}/shared/.env backend/.env`,
         'npm ci --prefix backend',
         'npm run build --prefix backend',
-        'npm ci --prefix frontend',
-        'NG_CLI_ANALYTICS=false npm run build --prefix frontend',
         'pm2 reload ecosystem.config.cjs --env production',
         'pm2 save'
       ].join(' && '),

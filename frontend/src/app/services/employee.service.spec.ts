@@ -4,8 +4,9 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { firstValueFrom } from 'rxjs';
 import { EmployeeService } from './employee.service';
 import { Employee, EmployeeDraft } from '../models/employee.model';
+import { environment } from '../../environments/environment';
 
-const API = '/api/v1/empleados';
+const API = `${environment.apiUrl}/empleados`;
 
 const empleado = (id: string, nombre: string, sueldo = 1000): Employee => ({
   id,

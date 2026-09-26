@@ -563,12 +563,19 @@ pm2 set pm2-slack:restart true
 pm2 save
 ```
 
-Para Discord existe el equivalente `pm2-discord`:
+**Configuración aplicada en este despliegue (Discord con `pm2-discord`):**
 
 ```bash
 pm2 install pm2-discord
 pm2 set pm2-discord:discord_url "URL_DEL_WEBHOOK_DE_DISCORD"
+pm2 set pm2-discord:process_name gestion-empleados
+pm2 set pm2-discord:log false          # no reenviar stdout (morgan escribe una línea por petición)
+for e in error exception stop exit restart kill online; do pm2 set pm2-discord:$e true; done
+pm2 set pm2-discord:"restart overlimit" true
+pm2 save
 ```
+
+> El módulo arranca en estado `errored` hasta que se define `discord_url`; es normal. La URL del webhook es un secreto: no la subas al repositorio.
 
 ### 6.3 Rotación de logs (evita llenar el disco)
 
