@@ -1,0 +1,514 @@
+<title>Evidencia Práctica 04</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --surface: #fcfcfb;
+    --line: #e3e5ea;
+    --grid: #eceef2;
+    --ink: #11151c;
+    --ink-2: #4d5563;
+    --ink-3: #6f7784;
+    --s1: #2a78d6;      /* 2xx / 201 */
+    --s2: #eb6834;      /* 4xx / 400 */
+    --neutral: #66707f; /* throughput */
+    --good: #1a7f37;
+    --good-bg: #e6f4ea;
+    --sla: #b42318;
+    --band: rgba(42, 120, 214, .06);
+    --sans: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #121417; --surface: #1a1c20; --line: #2b2f36; --grid: #25282e;
+      --ink: #f3f4f6; --ink-2: #c1c6cf; --ink-3: #969ca7;
+      --s1: #3987e5; --s2: #d95926; --neutral: #8b95a5;
+      --good: #4ac26b; --good-bg: #16301f; --sla: #f97066;
+      --band: rgba(57, 135, 229, .09);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #121417; --surface: #1a1c20; --line: #2b2f36; --grid: #25282e;
+    --ink: #f3f4f6; --ink-2: #c1c6cf; --ink-3: #969ca7;
+    --s1: #3987e5; --s2: #d95926; --neutral: #8b95a5;
+    --good: #4ac26b; --good-bg: #16301f; --sla: #f97066;
+    --band: rgba(57, 135, 229, .09);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--ink); font-family: var(--sans);
+    font-size: 15px; line-height: 1.55;
+    padding-inline: 16px; padding-block: 32px 64px;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; display: grid; gap: 28px; }
+  header { display: grid; gap: 6px; }
+  .eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
+  h1 { font-size: clamp(26px, 4vw, 34px); line-height: 1.15; margin: 0; font-weight: 700; text-wrap: balance; letter-spacing: -.01em; }
+  h2 { font-size: 18px; margin: 0; font-weight: 600; text-wrap: balance; }
+  .lede { color: var(--ink-2); max-width: 68ch; margin: 0; }
+  code, .mono { font-family: var(--mono); font-size: .88em; }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+  .tile { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 4px; align-content: start; }
+  .tile .label { font-size: 13px; color: var(--ink-2); }
+  .tile .value { font-size: 30px; font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .tile .value small { font-size: 15px; font-weight: 500; color: var(--ink-2); }
+  .tile .note { font-size: 13px; color: var(--ink-3); }
+  .pill { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: var(--good); background: var(--good-bg); border-radius: 999px; padding: 2px 9px; justify-self: start; }
+  .pill svg { width: 12px; height: 12px; }
+
+  section.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 20px; display: grid; gap: 14px; min-width: 0; }
+  .card-head { display: grid; gap: 4px; }
+  .card-head p { margin: 0; color: var(--ink-2); font-size: 14px; max-width: 72ch; }
+  .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 20px; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; color: var(--ink-2); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .key-rect { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+  .key-line { width: 16px; height: 2px; border-radius: 2px; display: inline-block; }
+
+  .chart { position: relative; width: 100%; }
+  .chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .chart text { font-family: var(--sans); fill: var(--ink-3); font-size: 11px; }
+  .chart .val { fill: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .chart .ann { fill: var(--ink-2); font-size: 11px; }
+  .hit { fill: transparent; cursor: default; }
+  .hit:focus { outline: none; }
+  .hit:focus-visible { stroke: var(--ink-2); stroke-width: 1; }
+  .mark { transition: opacity .12s; }
+  .chart.hovering .mark:not(.on) { opacity: .45; }
+
+  .tip {
+    position: absolute; pointer-events: none; z-index: 5; min-width: 150px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(0,0,0,.12); padding: 8px 10px; font-size: 12px;
+  }
+  .tip .t { color: var(--ink-3); margin-bottom: 4px; font-family: var(--mono); }
+  .tip .row { display: flex; align-items: center; gap: 8px; }
+  .tip .row b { font-variant-numeric: tabular-nums; color: var(--ink); min-width: 52px; }
+  .tip .row span { color: var(--ink-2); }
+
+  .verdict { display: grid; gap: 10px; font-size: 14px; color: var(--ink-2); }
+  .verdict p { margin: 0; max-width: 72ch; }
+  .verdict strong { color: var(--ink); }
+
+  .tests { list-style: none; padding: 0; margin: 0; display: grid; gap: 0; }
+  .tests li { display: grid; grid-template-columns: 20px 1fr auto; gap: 10px; align-items: start; padding: 9px 0; border-top: 1px solid var(--grid); font-size: 14px; }
+  .tests li:first-child { border-top: 0; }
+  .tests svg { width: 16px; height: 16px; margin-top: 3px; color: var(--good); }
+  .tests .what { color: var(--ink-3); font-family: var(--mono); font-size: 12px; white-space: nowrap; }
+  pre.term { margin: 0; font-family: var(--mono); font-size: 12.5px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; overflow-x: auto; color: var(--ink-2); }
+  pre.term .ok { color: var(--good); font-weight: 500; }
+
+  .table-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+  th, td { text-align: right; padding: 7px 10px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--ink-3); font-weight: 500; font-size: 12px; }
+  tfoot td { font-weight: 600; border-bottom: 0; border-top: 1px solid var(--line); }
+  details summary { cursor: pointer; font-weight: 600; font-size: 15px; }
+  details[open] summary { margin-bottom: 12px; }
+  footer { color: var(--ink-3); font-size: 12px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Práctica 04 · ISO/IEC 25010 · API de empleados</div>
+    <h1>Evidencia de pruebas: Jest y Artillery</h1>
+    <p class="lede">Resultados de la prueba unitaria aislada del controlador y de la prueba de estrés sobre <code>POST /api/v1/empleados</code>, corrida el 25 de septiembre de 2026 entre las 19:20:04 y las 19:20:58 (UTC−5).</p>
+  </header>
+
+  <div class="tiles">
+    <div class="tile">
+      <span class="label">Pruebas unitarias (Jest)</span>
+      <span class="value">5 <small>de 5</small></span>
+      <span class="pill"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M3 8.5l3 3 7-7"/></svg>Aprobadas</span>
+    </div>
+    <div class="tile">
+      <span class="label">Latencia p99</span>
+      <span class="value">16 <small>ms</small></span>
+      <span class="pill"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M3 8.5l3 3 7-7"/></svg>SLA &lt; 200 ms</span>
+    </div>
+    <div class="tile">
+      <span class="label">Tasa de error</span>
+      <span class="value">0 <small>%</small></span>
+      <span class="pill"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M3 8.5l3 3 7-7"/></svg>SLA &lt; 1 %</span>
+    </div>
+    <div class="tile">
+      <span class="label">Solicitudes procesadas</span>
+      <span class="value">2,150</span>
+      <span class="note">1,075 usuarios virtuales · 52 s</span>
+    </div>
+  </div>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>¿Cuánto margen queda frente al SLA?</h2>
+      <p>Distribución global del tiempo de respuesta sobre la escala completa del acuerdo de nivel de servicio. Incluso la petición más lenta (46 ms) usó menos de la cuarta parte del presupuesto.</p>
+    </div>
+    <div class="chart" id="c-sla"></div>
+  </section>
+
+  <div class="grid-2">
+    <section class="card">
+      <div class="card-head">
+        <h2>Carga inyectada por ventana</h2>
+        <p>Solicitudes por segundo en cada ventana de reporte de Artillery. El tráfico se multiplicó por 8 del calentamiento al pico.</p>
+      </div>
+      <div class="chart" id="c-rps"></div>
+    </section>
+    <section class="card">
+      <div class="card-head">
+        <h2>p99 por ventana: sin degradación</h2>
+        <p>Mientras la carga crece, el p99 se mantiene plano. El valor más alto aparece en el arranque en frío, no en el pico.</p>
+      </div>
+      <div class="legend">
+        <span><i class="key-line" style="background:var(--s1)"></i>2xx · registro válido</span>
+        <span><i class="key-line" style="background:var(--s2)"></i>4xx · rechazo Zod</span>
+      </div>
+      <div class="chart" id="c-p99"></div>
+    </section>
+  </div>
+
+  <div class="grid-2">
+    <section class="card">
+      <div class="card-head">
+        <h2>201 frente a 400 por ventana</h2>
+        <p>Cada usuario virtual envía un payload válido y uno corrupto. Los totales coinciden exactamente: <strong>1,075 = 1,075</strong>. Las diferencias por ventana se deben al <code>think: 1</code>, que empuja el segundo POST a la ventana siguiente.</p>
+      </div>
+      <div class="legend">
+        <span><i class="key-rect" style="background:var(--s1)"></i>201 Created</span>
+        <span><i class="key-rect" style="background:var(--s2)"></i>400 Bad Request</span>
+      </div>
+      <div class="chart" id="c-codes"></div>
+    </section>
+    <section class="card">
+      <div class="card-head">
+        <h2>Costo del rechazo perimetral</h2>
+        <p>Tiempo de respuesta global por clase. Un rechazo de Zod cuesta en promedio 0.8 ms, casi 6 veces menos que un registro válido, porque nunca llega a MongoDB.</p>
+      </div>
+      <div class="legend">
+        <span><i class="key-rect" style="background:var(--s1)"></i>2xx · registro válido</span>
+        <span><i class="key-rect" style="background:var(--s2)"></i>4xx · rechazo Zod</span>
+      </div>
+      <div class="chart" id="c-class"></div>
+    </section>
+  </div>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>Lectura bajo ISO/IEC 25010</h2>
+    </div>
+    <div class="verdict">
+      <p><strong>Comportamiento temporal:</strong> cumple con holgura. p99 de 16 ms contra un umbral de 200 ms, y ninguna ventana superó los 25 ms.</p>
+      <p><strong>Capacidad:</strong> no se alcanzó el punto de saturación. A unas 85 solicitudes por segundo el Event Loop no muestra cola: la latencia no crece ni lineal ni exponencialmente. Para encontrar el límite real hace falta una fase con más carga.</p>
+      <p><strong>Integridad perimetral:</strong> el DTO de Zod rechazó el 100 % del tráfico corrupto y no bloqueó ninguna petición válida. El rechazo ocurre antes de tocar la base de datos, con p99 de 6 ms.</p>
+      <p><strong>Limitaciones:</strong> una sola corrida, cliente y servidor en la misma máquina compitiendo por CPU, y 1,075 empleados reales insertados en la base como efecto secundario.</p>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>Aislamiento del controlador (Jest)</h2>
+      <p>El spec construye el controlador con un doble de prueba de <code>IEmployeeRepository</code>. Ni el spec ni sus dependencias importan <code>mongoose</code>, así que la suite corre sin Docker ni MongoDB.</p>
+    </div>
+    <pre class="term">$ npm test
+Test Suites: <span class="ok">1 passed</span>, 1 total
+Tests:       <span class="ok">5 passed</span>, 5 total
+Time:        0.216 s</pre>
+    <ul class="tests" id="tests"></ul>
+  </section>
+
+  <section class="card">
+    <details>
+      <summary>Datos por ventana</summary>
+      <div class="table-wrap">
+        <table id="tbl"></table>
+      </div>
+    </details>
+  </section>
+
+  <footer>Fuentes: <code>evidencias-pruebas/artillery-report.json</code>, <code>evidencias-pruebas/artillery-output.txt</code> y ejecución local de <code>npm test</code>. Solicitudes por segundo calculadas como solicitudes ÷ ancho real de cada ventana.</footer>
+</div>
+
+<script>
+(function () {
+  const W = [
+    { t: '19:20:10', w: 4.158, c201: 24,  c400: 18,  req: 42,  a: { p50: 3, p95: 18,   p99: 24.8, max: 39 }, x2: { mean: 8.0, p95: 18,   p99: 24.8, max: 39 }, x4: { mean: 2.5, p95: 5, p99: 5, max: 21 } },
+    { t: '19:20:20', w: 9.961, c201: 50,  c400: 51,  req: 101, a: { p50: 2, p95: 7.9,  p99: 12.1, max: 12 }, x2: { mean: 4.7, p95: 8.9,  p99: 12.1, max: 12 }, x4: { mean: 0.7, p95: 1, p99: 1, max: 3 } },
+    { t: '19:20:30', w: 9.958, c201: 108, c400: 93,  req: 201, a: { p50: 2, p95: 10.1, p99: 18,   max: 46 }, x2: { mean: 5.5, p95: 12.1, p99: 18,   max: 46 }, x4: { mean: 0.7, p95: 1, p99: 2, max: 3 } },
+    { t: '19:20:40', w: 9.963, c201: 264, c400: 252, req: 516, a: { p50: 2, p95: 8.9,  p99: 13.9, max: 28 }, x2: { mean: 4.7, p95: 10.9, p99: 16,   max: 28 }, x4: { mean: 0.9, p95: 2, p99: 6, max: 9 } },
+    { t: '19:20:50', w: 9.966, c201: 384, c400: 373, req: 759, a: { p50: 2, p95: 7.9,  p99: 16,   max: 43 }, x2: { mean: 4.6, p95: 10.1, p99: 23.8, max: 43 }, x4: { mean: 0.8, p95: 2, p99: 6, max: 7 } },
+    { t: '19:20:56', w: 6.265, c201: 245, c400: 288, req: 531, a: { p50: 1, p95: 7.9,  p99: 10.9, max: 15 }, x2: { mean: 4.2, p95: 8.9,  p99: 12.1, max: 15 }, x4: { mean: 0.7, p95: 2, p99: 4, max: 7 } },
+  ];
+  W.forEach(d => { d.rps = d.req / d.w; });
+  const PHASE = i => i < 2 ? 'Calentamiento · 5 VU/s' : (i === 2 ? 'Transición a la rampa (19:20:24)' : 'Rampa 15 → 50 VU/s');
+
+  const NS = 'http://www.w3.org/2000/svg';
+  const el = (tag, attrs, parent) => {
+    const n = document.createElementNS(NS, tag);
+    for (const k in attrs) n.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(n);
+    return n;
+  };
+  const txt = (parent, x, y, s, attrs = {}) => { const t = el('text', Object.assign({ x, y }, attrs), parent); t.textContent = s; return t; };
+  const fmt = (v, d = 1) => (Math.round(v * 10 ** d) / 10 ** d).toLocaleString('en-US', { maximumFractionDigits: d });
+  const num = v => v.toLocaleString('en-US');
+
+  // Column path: 4px rounded top, square base.
+  function colPath(x, y, w, h, r = 4) {
+    r = Math.min(r, h, w / 2);
+    return `M${x},${y + h}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h}Z`;
+  }
+  function barPathH(x, y, w, h, r = 4) {
+    r = Math.min(r, w, h / 2);
+    return `M${x},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h - r}Q${x + w},${y + h} ${x + w - r},${y + h}H${x}Z`;
+  }
+
+  // Tooltip -------------------------------------------------------------
+  function makeTip(host) {
+    const tip = document.createElement('div');
+    tip.className = 'tip'; tip.hidden = true; host.appendChild(tip);
+    return {
+      show(title, rows, px, py) {
+        tip.replaceChildren();
+        const t = document.createElement('div'); t.className = 't'; t.textContent = title; tip.appendChild(t);
+        rows.forEach(r => {
+          const row = document.createElement('div'); row.className = 'row';
+          if (r.color) { const k = document.createElement('i'); k.className = 'key-line'; k.style.background = r.color; row.appendChild(k); }
+          const b = document.createElement('b'); b.textContent = r.value; row.appendChild(b);
+          const s = document.createElement('span'); s.textContent = r.label; row.appendChild(s);
+          tip.appendChild(row);
+        });
+        tip.hidden = false;
+        const hw = host.clientWidth, tw = tip.offsetWidth;
+        let left = px + 14; if (left + tw > hw) left = px - tw - 14; if (left < 0) left = 0;
+        tip.style.left = left + 'px'; tip.style.top = Math.max(0, py - 10) + 'px';
+      },
+      hide() { tip.hidden = true; }
+    };
+  }
+  function localXY(host, evt, fallbackEl) {
+    const hb = host.getBoundingClientRect();
+    if (evt && evt.clientX !== undefined && evt.type !== 'focus') return [evt.clientX - hb.left, evt.clientY - hb.top];
+    const b = fallbackEl.getBoundingClientRect();
+    return [b.left - hb.left + b.width / 2, b.top - hb.top];
+  }
+  function wireHit(host, hit, marks, onShow, tip) {
+    const on = e => { host.classList.add('hovering'); marks.forEach(m => m.classList.add('on')); const [x, y] = localXY(host, e, hit); onShow(x, y); };
+    const off = () => { host.classList.remove('hovering'); marks.forEach(m => m.classList.remove('on')); tip.hide(); };
+    hit.setAttribute('tabindex', '0');
+    hit.addEventListener('pointermove', on); hit.addEventListener('focus', on);
+    hit.addEventListener('pointerleave', off); hit.addEventListener('blur', off);
+  }
+
+  function yAxis(svg, m, iw, ih, max, step, unit) {
+    const g = el('g', {}, svg);
+    for (let v = 0; v <= max + 1e-9; v += step) {
+      const y = m.t + ih - (v / max) * ih;
+      el('line', { x1: m.l, x2: m.l + iw, y1: y, y2: y, stroke: 'var(--grid)', 'stroke-width': 1 }, g);
+      txt(g, m.l - 8, y + 4, num(v) + (unit && v === max ? ' ' + unit : ''), { 'text-anchor': 'end' });
+    }
+  }
+
+  // 1. SLA bullet -------------------------------------------------------
+  (function () {
+    const host = document.getElementById('c-sla');
+    const VW = 900, VH = 120, m = { l: 12, r: 24, t: 34, b: 30 };
+    const iw = VW - m.l - m.r, max = 200;
+    const svg = el('svg', { viewBox: `0 0 ${VW} ${VH}`, role: 'img', 'aria-label': 'p50 2 ms, p95 7.9 ms, p99 16 ms, máximo 46 ms, contra un SLA de 200 ms' }, host);
+    const X = v => m.l + (v / max) * iw;
+    const y = m.t, h = 22;
+    for (let v = 0; v <= max; v += 25) {
+      el('line', { x1: X(v), x2: X(v), y1: y - 6, y2: y + h + 6, stroke: 'var(--grid)', 'stroke-width': 1 }, svg);
+      txt(svg, X(v), y + h + 22, v + (v === max ? ' ms' : ''), { 'text-anchor': v === max ? 'end' : 'middle' });
+    }
+    el('rect', { x: X(0), y, width: iw, height: h, rx: 4, fill: 'var(--grid)' }, svg);
+    const tip = makeTip(host);
+    const pts = [
+      { k: 'p50', v: 2 }, { k: 'p95', v: 7.9 }, { k: 'p99', v: 16 }, { k: 'máx.', v: 46 }
+    ];
+    const p99 = el('path', { d: barPathH(X(0), y, X(16) - X(0), h), fill: 'var(--s1)', class: 'mark' }, svg);
+    const mx = el('path', { d: barPathH(X(16) + 2, y + 7, X(46) - X(16) - 2, h - 14, 3), fill: 'var(--s1)', opacity: .35, class: 'mark' }, svg);
+    txt(svg, X(16), y - 10, 'p99 16 ms', { class: 'val', 'text-anchor': 'start' });
+    txt(svg, X(46) + 6, y + h / 2 + 4, 'máx. 46 ms', { class: 'ann', 'text-anchor': 'start' });
+    el('line', { x1: X(200), x2: X(200), y1: y - 12, y2: y + h + 6, stroke: 'var(--sla)', 'stroke-width': 2 }, svg);
+    txt(svg, X(200) - 6, y - 16, 'SLA p99 < 200 ms', { class: 'ann', 'text-anchor': 'end' });
+    const hit = el('rect', { x: X(0), y: y - 8, width: X(60) - X(0), height: h + 16, class: 'hit' }, svg);
+    wireHit(host, hit, [p99, mx], (px, py) => tip.show('Distribución global', pts.map(p => ({ value: fmt(p.v) + ' ms', label: p.k }))
+      .concat([{ value: '200 ms', label: 'umbral SLA' }]), px, py), tip);
+  })();
+
+  // 2. Throughput columns -----------------------------------------------
+  (function () {
+    const host = document.getElementById('c-rps');
+    const VW = 480, VH = 260, m = { l: 40, r: 10, t: 24, b: 44 };
+    const iw = VW - m.l - m.r, ih = VH - m.t - m.b, max = 100;
+    const svg = el('svg', { viewBox: `0 0 ${VW} ${VH}`, role: 'img', 'aria-label': 'Solicitudes por segundo por ventana' }, host);
+    yAxis(svg, m, iw, ih, max, 25, 'req/s');
+    const band = iw / W.length, bw = Math.min(24, band * .5);
+    const bx = i => m.l + band * i + band / 2;
+    // phase marker at 19:20:24 (inside window 3: 19:20:20–19:20:30)
+    const phx = m.l + band * 2 + band * 0.4;
+    el('rect', { x: phx, y: m.t, width: m.l + iw - phx, height: ih, fill: 'var(--band)' }, svg);
+    txt(svg, phx + 4, m.t - 8, 'Fase 2: rampa', { class: 'ann' });
+    const tip = makeTip(host);
+    W.forEach((d, i) => {
+      const h = (d.rps / max) * ih, x = bx(i) - bw / 2, y = m.t + ih - h;
+      const p = el('path', { d: colPath(x, y, bw, h), fill: 'var(--neutral)', class: 'mark' }, svg);
+      if (i === 0 || i === W.length - 1) txt(svg, bx(i), y - 6, fmt(d.rps, 0), { class: 'val', 'text-anchor': 'middle' });
+      txt(svg, bx(i), m.t + ih + 18, d.t.slice(3), { 'text-anchor': 'middle' });
+      const hit = el('rect', { x: m.l + band * i, y: m.t, width: band, height: ih, class: 'hit' }, svg);
+      wireHit(host, hit, [p], (px, py) => tip.show(`Ventana hasta ${d.t}`, [
+        { value: fmt(d.rps) + ' req/s', label: 'rendimiento' },
+        { value: num(d.req), label: `solicitudes en ${fmt(d.w)} s` },
+        { value: '', label: PHASE(i) }
+      ], px, py), tip);
+    });
+    txt(svg, m.l + iw / 2, VH - 6, 'Fin de ventana (min:s)', { 'text-anchor': 'middle' });
+  })();
+
+  // 3. p99 line chart ---------------------------------------------------
+  (function () {
+    const host = document.getElementById('c-p99');
+    const VW = 480, VH = 240, m = { l: 40, r: 44, t: 24, b: 44 };
+    const iw = VW - m.l - m.r, ih = VH - m.t - m.b, max = 30;
+    const svg = el('svg', { viewBox: `0 0 ${VW} ${VH}`, role: 'img', 'aria-label': 'p99 por ventana para respuestas 2xx y 4xx' }, host);
+    yAxis(svg, m, iw, ih, max, 10, 'ms');
+    const band = iw / W.length, X = i => m.l + band * i + band / 2, Y = v => m.t + ih - (v / max) * ih;
+    const phx = m.l + band * 2 + band * 0.4;
+    el('rect', { x: phx, y: m.t, width: m.l + iw - phx, height: ih, fill: 'var(--band)' }, svg);
+    txt(svg, phx + 4, m.t - 8, 'Fase 2: rampa', { class: 'ann' });
+    W.forEach((d, i) => txt(svg, X(i), m.t + ih + 18, d.t.slice(3), { 'text-anchor': 'middle' }));
+    txt(svg, m.l + iw / 2, VH - 6, 'Fin de ventana (min:s)', { 'text-anchor': 'middle' });
+    const series = [
+      { key: 'x2', color: 'var(--s1)', name: '2xx' },
+      { key: 'x4', color: 'var(--s2)', name: '4xx' }
+    ];
+    const cross = el('line', { y1: m.t, y2: m.t + ih, stroke: 'var(--ink-3)', 'stroke-width': 1, opacity: 0 }, svg);
+    series.forEach(s => {
+      const d = W.map((w, i) => `${i ? 'L' : 'M'}${X(i)},${Y(w[s.key].p99)}`).join('');
+      el('path', { d, fill: 'none', stroke: s.color, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, svg);
+      W.forEach((w, i) => el('circle', { cx: X(i), cy: Y(w[s.key].p99), r: 4, fill: s.color, stroke: 'var(--surface)', 'stroke-width': 2 }, svg));
+      const last = W[W.length - 1][s.key].p99;
+      txt(svg, X(W.length - 1) + 10, Y(last) + 4, fmt(last) + ' ms', { class: 'val' });
+    });
+    // annotate cold start peak
+    txt(svg, X(0) + 10, Y(24.8) + 4, '24.8 ms · arranque en frío', { class: 'ann' });
+    const tip = makeTip(host);
+    W.forEach((d, i) => {
+      const hit = el('rect', { x: m.l + band * i, y: m.t, width: band, height: ih, class: 'hit' }, svg);
+      const show = (px, py) => {
+        cross.setAttribute('x1', X(i)); cross.setAttribute('x2', X(i)); cross.setAttribute('opacity', .5);
+        tip.show(`Ventana hasta ${d.t} · ${fmt(d.rps, 0)} req/s`, [
+          { color: 'var(--s1)', value: fmt(d.x2.p99) + ' ms', label: 'p99 2xx' },
+          { color: 'var(--s2)', value: fmt(d.x4.p99) + ' ms', label: 'p99 4xx' },
+          { value: fmt(d.a.p99) + ' ms', label: 'p99 global' }
+        ], px, py);
+      };
+      hit.setAttribute('tabindex', '0');
+      const on = e => { const [x, y] = localXY(host, e, hit); show(x, y); };
+      const off = () => { cross.setAttribute('opacity', 0); tip.hide(); };
+      hit.addEventListener('pointermove', on); hit.addEventListener('focus', on);
+      hit.addEventListener('pointerleave', off); hit.addEventListener('blur', off);
+    });
+  })();
+
+  // 4. Grouped columns 201 vs 400 --------------------------------------
+  (function () {
+    const host = document.getElementById('c-codes');
+    const VW = 480, VH = 260, m = { l: 40, r: 10, t: 16, b: 44 };
+    const iw = VW - m.l - m.r, ih = VH - m.t - m.b, max = 400;
+    const svg = el('svg', { viewBox: `0 0 ${VW} ${VH}`, role: 'img', 'aria-label': 'Respuestas 201 y 400 por ventana' }, host);
+    yAxis(svg, m, iw, ih, max, 100);
+    const band = iw / W.length, bw = Math.min(20, band * .3), gap = 2;
+    const tip = makeTip(host);
+    W.forEach((d, i) => {
+      const cx = m.l + band * i + band / 2;
+      const marks = [['c201', 'var(--s1)', -1], ['c400', 'var(--s2)', 0]].map(([k, c, off]) => {
+        const h = (d[k] / max) * ih, x = cx + off * (bw + gap / 2) + (off === 0 ? gap / 2 : 0);
+        return el('path', { d: colPath(x, m.t + ih - h, bw, h), fill: c, class: 'mark' }, svg);
+      });
+      txt(svg, cx, m.t + ih + 18, d.t.slice(3), { 'text-anchor': 'middle' });
+      const hit = el('rect', { x: m.l + band * i, y: m.t, width: band, height: ih, class: 'hit' }, svg);
+      wireHit(host, hit, marks, (px, py) => tip.show(`Ventana hasta ${d.t}`, [
+        { color: 'var(--s1)', value: num(d.c201), label: '201 Created' },
+        { color: 'var(--s2)', value: num(d.c400), label: '400 Bad Request' }
+      ], px, py), tip);
+    });
+    const pk = W[4];
+    txt(svg, m.l + band * 4.5, m.t + ih - (pk.c201 / max) * ih - 6, num(pk.c201) + ' / ' + num(pk.c400), { class: 'val', 'text-anchor': 'middle' });
+    txt(svg, m.l + iw / 2, VH - 6, 'Fin de ventana (min:s)', { 'text-anchor': 'middle' });
+  })();
+
+  // 5. Horizontal grouped bars by class ---------------------------------
+  (function () {
+    const host = document.getElementById('c-class');
+    const stats = [
+      { k: 'media', a: 4.7, b: 0.8 },
+      { k: 'p95', a: 10.9, b: 2 },
+      { k: 'p99', a: 21.1, b: 6 },
+    ];
+    const VW = 480, VH = 230, m = { l: 56, r: 64, t: 10, b: 30 };
+    const iw = VW - m.l - m.r, ih = VH - m.t - m.b, max = 25;
+    const svg = el('svg', { viewBox: `0 0 ${VW} ${VH}`, role: 'img', 'aria-label': 'Media, p95 y p99 de 2xx frente a 4xx' }, host);
+    const X = v => m.l + (v / max) * iw;
+    for (let v = 0; v <= max; v += 5) {
+      el('line', { x1: X(v), x2: X(v), y1: m.t, y2: m.t + ih, stroke: 'var(--grid)', 'stroke-width': 1 }, svg);
+      txt(svg, X(v), m.t + ih + 18, v + (v === max ? ' ms' : ''), { 'text-anchor': 'middle' });
+    }
+    const band = ih / stats.length, bh = Math.min(20, band * .3), tip = makeTip(host);
+    stats.forEach((s, i) => {
+      const cy = m.t + band * i + band / 2;
+      txt(svg, m.l - 10, cy + 4, s.k, { 'text-anchor': 'end', style: 'fill:var(--ink-2);font-size:12px' });
+      const marks = [[s.a, 'var(--s1)', cy - bh - 1], [s.b, 'var(--s2)', cy + 1]].map(([v, c, y]) => {
+        const p = el('path', { d: barPathH(X(0), y, X(v) - X(0), bh), fill: c, class: 'mark' }, svg);
+        txt(svg, X(v) + 6, y + bh / 2 + 4, fmt(v) + ' ms', { class: 'val' });
+        return p;
+      });
+      const hit = el('rect', { x: 0, y: m.t + band * i, width: VW, height: band, class: 'hit' }, svg);
+      wireHit(host, hit, marks, (px, py) => tip.show(s.k, [
+        { color: 'var(--s1)', value: fmt(s.a) + ' ms', label: '2xx · registro' },
+        { color: 'var(--s2)', value: fmt(s.b) + ' ms', label: '4xx · Zod' },
+        { value: '×' + fmt(s.a / s.b), label: 'más lento el registro' }
+      ], px, py), tip);
+    });
+  })();
+
+  // Jest test list ------------------------------------------------------
+  const tests = [
+    ['Retorna 200 y la lista de empleados de la abstracción', 'findAll'],
+    ['Retorna 200 y el empleado cuando el id existe', 'findById'],
+    ['Lanza NotFoundError cuando el id no existe, sin responder', 'findById → null'],
+    ['Retorna 201 y delega el registro al repositorio', 'create'],
+    ['Retorna 200 con el id eliminado', 'delete'],
+  ];
+  const ul = document.getElementById('tests');
+  tests.forEach(([name, what]) => {
+    const li = document.createElement('li');
+    li.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" aria-label="aprobada"><path d="M3 8.5l3 3 7-7"/></svg>';
+    const n = document.createElement('span'); n.textContent = name; li.appendChild(n);
+    const w = document.createElement('span'); w.className = 'what'; w.textContent = what; li.appendChild(w);
+    ul.appendChild(li);
+  });
+
+  // Table ---------------------------------------------------------------
+  const tbl = document.getElementById('tbl');
+  const head = ['Ventana hasta', 'Ancho (s)', 'Solicitudes', 'req/s', '201', '400', 'p95 (ms)', 'p99 (ms)', 'p99 2xx', 'p99 4xx', 'Máx. (ms)'];
+  const thead = tbl.createTHead().insertRow();
+  head.forEach(h => { const th = document.createElement('th'); th.textContent = h; thead.appendChild(th); });
+  const tb = tbl.createTBody();
+  W.forEach(d => {
+    const r = tb.insertRow();
+    [d.t, fmt(d.w, 2), num(d.req), fmt(d.rps), num(d.c201), num(d.c400), fmt(d.a.p95), fmt(d.a.p99), fmt(d.x2.p99), fmt(d.x4.p99), num(d.a.max)]
+      .forEach(v => { r.insertCell().textContent = v; });
+  });
+  const tf = tbl.createTFoot().insertRow();
+  ['Total', '52', '2,150', '53', '1,075', '1,075', '7.9', '16', '21.1', '6', '46'].forEach(v => { tf.insertCell().textContent = v; });
+})();
+</script>
