@@ -116,76 +116,79 @@
   footer { color: var(--ink-3); font-size: 12px; }
 </style>
 <style>
-  :root { --bad: #b42318; --bad-bg: #fdecea; --err: #d92d20; }
+  :root { --bad: #b42318; --bad-bg: #fdecea; --err: #d92d20; --s3: #1baf7a; }
   @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) { --bad: #f97066; --bad-bg: #3a1a17; --err: #f04438; }
+    :root:not([data-theme="light"]) { --bad: #f97066; --bad-bg: #3a1a17; --err: #f04438; --s3: #199e70; }
   }
-  :root[data-theme="dark"] { --bad: #f97066; --bad-bg: #3a1a17; --err: #f04438; }
-  .pill.fail { color: var(--bad); background: var(--bad-bg); }
-  .pair { display: grid; grid-template-columns: 1fr auto 1fr; align-items: end; gap: 8px; }
-  .pair .side { display: grid; gap: 2px; }
-  .pair .who { font-size: 12px; color: var(--ink-3); display: inline-flex; align-items: center; gap: 6px; }
-  .pair .who i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-  .pair .v { white-space: nowrap; font-size: 22px; font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; }
-  .pair .v small { font-size: 13px; font-weight: 500; color: var(--ink-2); }
-  .pair .arrow { color: var(--ink-3); font-size: 18px; padding-bottom: 4px; }
+  :root[data-theme="dark"] { --bad: #f97066; --bad-bg: #3a1a17; --err: #f04438; --s3: #199e70; }
+  .tri { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 6px; }
+  .tri li { display: grid; grid-template-columns: 10px 1fr auto; align-items: baseline; gap: 8px; font-size: 13px; color: var(--ink-2); }
+  .tri li i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; align-self: center; }
+  .tri li b { font-size: 18px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .tri li b small { font-size: 12px; font-weight: 500; color: var(--ink-2); }
+  .tri li b.bad { color: var(--bad); }
   .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; justify-self: start; }
   .seg button { font: inherit; font-size: 13px; background: var(--surface); color: var(--ink-2); border: 0; padding: 5px 12px; cursor: pointer; }
   .seg button + button { border-left: 1px solid var(--line); }
   .seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
   .seg button:focus-visible { outline: 2px solid var(--s1); outline-offset: -2px; }
   .row-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
+  .runs { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+  .run { display: grid; grid-template-columns: 10px 1fr; gap: 4px 10px; font-size: 13px; color: var(--ink-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--surface); }
+  .run i { width: 10px; height: 10px; border-radius: 50%; margin-top: 4px; }
+  .run b { color: var(--ink); font-weight: 600; font-size: 14px; }
+  .run span { grid-column: 2; }
   td.bad { color: var(--bad); font-weight: 600; }
   td.ok { color: var(--good); font-weight: 600; }
+  .correction { border-left: 3px solid var(--s3); padding-left: 12px; }
 </style>
 
 <div class="wrap">
   <header>
     <div class="eyebrow">Práctica 04 · ISO/IEC 25010 · Comparativa de entornos</div>
     <h1>Mongo local frente a MongoDB Atlas</h1>
-    <p class="lede">La misma API, el mismo <code>stress-test.yml</code> y el mismo perfil de carga (1,075 usuarios virtuales en 52 s). Lo único que cambia es dónde vive la base de datos. Corrida local: 19:20:04. Corrida contra Atlas: 21:16:44.</p>
-    <div class="legend">
-      <span><i class="key-rect" style="background:var(--s1)"></i>Mongo local</span>
-      <span><i class="key-rect" style="background:var(--s2)"></i>MongoDB Atlas</span>
-    </div>
+    <p class="lede">La misma API, el mismo <code>stress-test.yml</code> y el mismo perfil de carga (1,075 usuarios virtuales en 52 s). Cambia dónde vive la base de datos y, en la segunda corrida contra Atlas, cómo se ejecuta el backend.</p>
   </header>
+
+  <div class="runs">
+    <div class="run"><i style="background:var(--s1)"></i><b>Local</b><span>Mongo en la misma máquina · <code>tsx watch</code> · 19:20:04</span></div>
+    <div class="run"><i style="background:var(--s2)"></i><b>Atlas · con watch</b><span>MongoDB Atlas · <code>tsx watch</code> · 21:16:44</span></div>
+    <div class="run"><i style="background:var(--s3)"></i><b>Atlas · sin watch</b><span>MongoDB Atlas · <code>npm run prod</code> · 21:48:15</span></div>
+  </div>
 
   <div class="tiles">
     <div class="tile">
-      <span class="label">Latencia p99 global</span>
-      <div class="pair">
-        <div class="side"><span class="who"><i style="background:var(--s1)"></i>Local</span><span class="v">16 <small>ms</small></span></div>
-        <span class="arrow">→</span>
-        <div class="side"><span class="who"><i style="background:var(--s2)"></i>Atlas</span><span class="v">1,496 <small>ms</small></span></div>
-      </div>
-      <span class="note">93 veces más lenta · SLA de 200 ms</span>
+      <span class="label">Latencia p99 global (SLA &lt; 200 ms)</span>
+      <ul class="tri">
+        <li><i style="background:var(--s1)"></i>Local<b>16 <small>ms</small></b></li>
+        <li><i style="background:var(--s2)"></i>Atlas · con watch<b class="bad">1,496 <small>ms</small></b></li>
+        <li><i style="background:var(--s3)"></i>Atlas · sin watch<b>176 <small>ms</small></b></li>
+      </ul>
+    </div>
+    <div class="tile">
+      <span class="label">p99 de un registro válido (2xx)</span>
+      <ul class="tri">
+        <li><i style="background:var(--s1)"></i>Local<b>21 <small>ms</small></b></li>
+        <li><i style="background:var(--s2)"></i>Atlas · con watch<b>1,526 <small>ms</small></b></li>
+        <li><i style="background:var(--s3)"></i>Atlas · sin watch<b>314 <small>ms</small></b></li>
+      </ul>
     </div>
     <div class="tile">
       <span class="label">Mediana de un registro válido (2xx)</span>
-      <div class="pair">
-        <div class="side"><span class="who"><i style="background:var(--s1)"></i>Local</span><span class="v">4 <small>ms</small></span></div>
-        <span class="arrow">→</span>
-        <div class="side"><span class="who"><i style="background:var(--s2)"></i>Atlas</span><span class="v">159 <small>ms</small></span></div>
-      </div>
-      <span class="note">Unos 155 ms extra de red por inserción</span>
+      <ul class="tri">
+        <li><i style="background:var(--s1)"></i>Local<b>4 <small>ms</small></b></li>
+        <li><i style="background:var(--s2)"></i>Atlas · con watch<b>159 <small>ms</small></b></li>
+        <li><i style="background:var(--s3)"></i>Atlas · sin watch<b>156 <small>ms</small></b></li>
+      </ul>
+      <span class="note">El piso de red no cambia sin watch</span>
     </div>
     <div class="tile">
-      <span class="label">Mediana de un rechazo Zod (4xx)</span>
-      <div class="pair">
-        <div class="side"><span class="who"><i style="background:var(--s1)"></i>Local</span><span class="v">1 <small>ms</small></span></div>
-        <span class="arrow">→</span>
-        <div class="side"><span class="who"><i style="background:var(--s2)"></i>Atlas</span><span class="v">1 <small>ms</small></span></div>
-      </div>
-      <span class="note">Sin cambio: el rechazo no toca la base</span>
-    </div>
-    <div class="tile">
-      <span class="label">Usuarios virtuales fallidos</span>
-      <div class="pair">
-        <div class="side"><span class="who"><i style="background:var(--s1)"></i>Local</span><span class="v">0</span></div>
-        <span class="arrow">→</span>
-        <div class="side"><span class="who"><i style="background:var(--s2)"></i>Atlas</span><span class="v">122 <small>11.3 %</small></span></div>
-      </div>
-      <span class="note">114 ECONNREFUSED · 8 ECONNRESET</span>
+      <span class="label">Usuarios virtuales fallidos (SLA &lt; 1 %)</span>
+      <ul class="tri">
+        <li><i style="background:var(--s1)"></i>Local<b>0</b></li>
+        <li><i style="background:var(--s2)"></i>Atlas · con watch<b class="bad">122 <small>11.3 %</small></b></li>
+        <li><i style="background:var(--s3)"></i>Atlas · sin watch<b>0</b></li>
+      </ul>
     </div>
   </div>
 
@@ -193,7 +196,7 @@
     <div class="row-head">
       <div class="card-head">
         <h2>p99 del registro válido a lo largo de la prueba</h2>
-        <p>La corrida local se mantiene plana por debajo de 25 ms. La de Atlas nunca baja del SLA y se dispara a partir del segundo 46, cuando la carga supera unas 60 req/s.</p>
+        <p>Sin watch, Atlas se mantiene entre 169 y 215 ms hasta el final, con la carga máxima. El salto a 2 s de la corrida con watch no vuelve a aparecer: no era saturación.</p>
       </div>
       <div class="seg" role="group" aria-label="Escala del eje vertical">
         <button type="button" id="sc-log" aria-pressed="true">Logarítmica</button>
@@ -201,8 +204,9 @@
       </div>
     </div>
     <div class="legend">
-      <span><i class="key-line" style="background:var(--s1)"></i>Mongo local</span>
-      <span><i class="key-line" style="background:var(--s2)"></i>MongoDB Atlas</span>
+      <span><i class="key-line" style="background:var(--s1)"></i>Local</span>
+      <span><i class="key-line" style="background:var(--s2)"></i>Atlas · con watch</span>
+      <span><i class="key-line" style="background:var(--s3)"></i>Atlas · sin watch</span>
       <span><i class="key-line" style="background:var(--bad)"></i>SLA 200 ms</span>
     </div>
     <div class="chart" id="c-2xx"></div>
@@ -212,22 +216,24 @@
     <section class="card">
       <div class="card-head">
         <h2>p99 del rechazo Zod</h2>
-        <p>Las dos curvas se quedan en milisegundos. Mientras Atlas tardaba 2 s en insertar, el servidor seguía rechazando payloads corruptos en el acto: el Event Loop estaba libre.</p>
+        <p>Las tres curvas se quedan en milisegundos, sin importar dónde esté la base. El rechazo nunca la toca, y el Event Loop estuvo libre en las tres corridas.</p>
       </div>
       <div class="legend">
-        <span><i class="key-line" style="background:var(--s1)"></i>Mongo local</span>
-        <span><i class="key-line" style="background:var(--s2)"></i>MongoDB Atlas</span>
+        <span><i class="key-line" style="background:var(--s1)"></i>Local</span>
+        <span><i class="key-line" style="background:var(--s2)"></i>Atlas · con watch</span>
+        <span><i class="key-line" style="background:var(--s3)"></i>Atlas · sin watch</span>
       </div>
       <div class="chart" id="c-4xx"></div>
     </section>
     <section class="card">
       <div class="card-head">
         <h2>Distribución del registro válido</h2>
-        <p>Cada fila une el valor local con el de Atlas en escala logarítmica. La distancia es de dos órdenes de magnitud en toda la distribución, no solo en la cola.</p>
+        <p>Escala logarítmica. Sin watch, la mediana y el p95 de Atlas quedan en el piso de red (156 y 169 ms). La cola bajó de 1.5 s a 314 ms, pero siguen apareciendo máximos de 1 s.</p>
       </div>
       <div class="legend">
-        <span><i class="key-rect" style="background:var(--s1);border-radius:50%"></i>Mongo local</span>
-        <span><i class="key-rect" style="background:var(--s2);border-radius:50%"></i>MongoDB Atlas</span>
+        <span><i class="key-rect" style="background:var(--s1);border-radius:50%"></i>Local</span>
+        <span><i class="key-rect" style="background:var(--s2);border-radius:50%"></i>Atlas · con watch</span>
+        <span><i class="key-rect" style="background:var(--s3);border-radius:50%"></i>Atlas · sin watch</span>
       </div>
       <div class="chart" id="c-dumb"></div>
     </section>
@@ -236,7 +242,7 @@
   <section class="card">
     <div class="card-head">
       <h2>¿Cómo terminó cada usuario virtual?</h2>
-      <p>Cada usuario virtual envía un registro válido y uno corrupto. En Atlas, 84 fallaron en el primer POST y 38 en el segundo.</p>
+      <p>Cada usuario virtual envía un registro válido y uno corrupto. Solo la corrida con watch perdió usuarios: 84 fallaron en el primer POST y 38 en el segundo.</p>
     </div>
     <div class="legend">
       <span><i class="key-rect" style="background:var(--s1)"></i>Flujo completo</span>
@@ -256,38 +262,46 @@
 
   <section class="card">
     <div class="card-head">
-      <h2>Qué explica la diferencia</h2>
+      <h2>Qué explica las diferencias</h2>
     </div>
     <div class="verdict">
-      <p><strong>La red fija un piso de latencia.</strong> Cada inserción en Atlas es un viaje de ida y vuelta por internet, con TLS. La mediana pasa de 4 ms a 159 ms. Con 155 ms de piso, el presupuesto de 200 ms deja solo 45 ms para cualquier espera, así que el p99 lo rompe desde la primera ventana.</p>
-      <p><strong>Abrir conexiones nuevas cuesta casi un segundo.</strong> Los valores de 963 a 1,026 ms se repiten en varias ventanas. Coinciden con lo que tarda abrir una conexión nueva del pool hacia Atlas (DNS SRV, TCP, TLS y autenticación son varios viajes de ida y vuelta). Cuando la carga crece, Mongoose abre más conexiones y más peticiones pagan ese costo.</p>
-      <p><strong>A partir de unas 60 req/s las peticiones hacen cola.</strong> Las inserciones llegan más rápido de lo que Atlas las confirma, y esperan una conexión libre. Por eso el p99 de 2xx pasa de 233 ms a 2,019 ms entre dos ventanas: crecimiento no lineal, típico de una cola saturada. Si el cluster es de nivel compartido (M0 o Flex), sus límites de operaciones por segundo también pueden sumar.</p>
-      <p><strong>El Event Loop no fue el cuello de botella en ninguna de las dos corridas.</strong> Los 4xx siguieron en torno a 1 ms incluso en la peor ventana de Atlas. La espera es E/S asíncrona, no código síncrono bloqueando el hilo.</p>
-      <p><strong>Los ECONNREFUSED indican que el servidor dejó de escuchar.</strong> No es un rechazo de Atlas: es el cliente de Artillery sin poder conectar al puerto 3000. El backend corre con <code>tsx watch</code>, que reinicia el proceso ante una caída o un cambio de archivo. Hay que revisar su consola de esa hora para confirmar la causa.</p>
-      <p><strong>Una segunda corrida local</strong> a las 19:30 dio p99 de 12.1 ms y 0 errores, así que el resultado local es reproducible. La de Atlas es una sola corrida y conviene repetirla antes de sacar conclusiones definitivas.</p>
+      <p><strong>La red fija un piso de latencia.</strong> Cada inserción en Atlas es un viaje de ida y vuelta por internet con TLS. La mediana pasa de 4 ms a 156–159 ms en las dos corridas contra Atlas. Con ese piso, el presupuesto de 200 ms deja solo unos 45 ms para cualquier espera.</p>
+      <p class="correction"><strong>El pico de 2 s y los ECONNREFUSED fueron un reinicio del proceso, no saturación.</strong> Con la misma carga y sin <code>tsx watch</code>, el p99 de 2xx se mantuvo en 169–215 ms hasta unas 79 req/s y no hubo ningún error. Queda descartada la hipótesis de una cola saturada a partir de 60 req/s. Un reinicio explica los dos síntomas a la vez: mientras el proceso arranca, el puerto rechaza conexiones; al volver, el pool está vacío y Mongoose retiene las operaciones hasta abrir conexiones nuevas hacia Atlas.</p>
+      <p><strong>Quedan máximos de casi 1 s en cada ventana.</strong> Incluso sin watch, cada ventana tiene un máximo de 950 a 1,043 ms. Coinciden con lo que tarda abrir una conexión nueva del pool (DNS SRV, TCP, TLS y autenticación). Son pocas peticiones, pero bastan para llevar el p99 de 2xx a 314 ms. Precalentar el pool con <code>minPoolSize</code> debería eliminarlos.</p>
+      <p><strong>El SLA se cumple sin watch, con un matiz.</strong> El p99 global (176 ms) queda por debajo de 200 ms porque la mitad del tráfico son rechazos de 1 ms que tiran de la cifra hacia abajo. Medido solo sobre registros válidos, el p99 es de 314 ms: quien registra un empleado no recibe la garantía de 200 ms. Conviene definir el SLA por tipo de respuesta.</p>
+      <p><strong>El Event Loop no fue el cuello de botella en ninguna corrida.</strong> Los 4xx siguieron en torno a 1 ms incluso en la peor ventana. La espera es E/S asíncrona hacia la base, no código síncrono bloqueando el hilo.</p>
+      <p><strong>Reproducibilidad.</strong> Una segunda corrida local a las 19:30 dio p99 de 12.1 ms y 0 errores. Las dos corridas contra Atlas coinciden en el piso de red (mediana de 156–159 ms), así que esa parte también es estable.</p>
     </div>
   </section>
 
-  <footer>Fuentes: <code>evidencias-pruebas/artillery-report.json</code> (local, 19:20:04) y salida de consola de Artillery contra Atlas (21:16:44). Los segundos del eje horizontal son el fin de cada ventana de reporte contado desde el inicio de la prueba; en las dos corridas coinciden.</footer>
+  <footer>Fuentes: <code>evidencias-pruebas/artillery-report.json</code> (local, 19:20:04) y salidas de consola de Artillery contra Atlas (21:16:44 con <code>tsx watch</code>, 21:48:15 con <code>npm run prod</code>). Los segundos del eje horizontal son el fin de cada ventana de reporte contado desde el inicio de la prueba; entre corridas difieren en un segundo como máximo.</footer>
 </div>
 
 <script>
 (function () {
   const T = [6, 16, 26, 36, 46, 52];
   const L = {
-    name: 'Mongo local', color: 'var(--s1)',
+    name: 'Local', color: 'var(--s1)',
     rps: [10.1, 10.1, 20.2, 51.8, 76.2, 84.8],
     p2: [24.8, 12.1, 18, 16, 23.8, 12.1],
     p4: [5, 1, 2, 6, 6, 4],
     dist: { mediana: 4, p95: 10.9, p99: 21.1, 'máx.': 46 },
   };
   const A = {
-    name: 'MongoDB Atlas', color: 'var(--s2)',
+    name: 'Atlas · con watch', color: 'var(--s2)',
     rps: [10.3, 10.6, 20.8, 52.2, 62.4, 93.0],
     p2: [963.1, 252.2, 963.1, 232.8, 2018.7, 1901.1],
     p4: [1, 34.8, 5, 7.9, 18, 7],
     dist: { mediana: 159.2, p95: 1408.4, p99: 1525.7, 'máx.': 2348 },
   };
+  const B = {
+    name: 'Atlas · sin watch', color: 'var(--s3)',
+    rps: [10.4, 10.7, 19.6, 50.7, 75.1, 79.0],
+    p2: [1002.4, 169, 169, 175.9, 179.5, 214.9],
+    p4: [2, 3, 3, 13.1, 6, 3],
+    dist: { mediana: 156, p95: 169, p99: 314.2, 'máx.': 1043 },
+  };
+  const RUNS = [L, A, B];
 
   const NS = 'http://www.w3.org/2000/svg';
   const el = (tag, attrs, parent) => { const n = document.createElementNS(NS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); if (parent) parent.appendChild(n); return n; };
@@ -329,15 +343,21 @@
     hit.addEventListener('pointerleave', off); hit.addEventListener('blur', off);
   }
 
-  // Line chart over the six windows, linear or log
+  // End labels: spread vertically so they never overlap (min gap 13px).
+  function endLabels(svg, x, items) {
+    items.sort((a, b) => a.y - b.y);
+    for (let i = 1; i < items.length; i++) if (items[i].y - items[i - 1].y < 13) items[i].y = items[i - 1].y + 13;
+    items.forEach(it => txt(svg, x, it.y + 4, it.s, { class: 'val' }));
+  }
+
   function lineChart(hostId, key, opts) {
     const host = document.getElementById(hostId);
     const tip = makeTip(host);
-    function draw(mode) {
+    return function draw(mode) {
       host.querySelector('svg')?.remove();
-      const VW = opts.vw || 900, VH = opts.vh || 300, m = { l: 52, r: 64, t: 24, b: 44 };
+      const VW = opts.vw || 900, VH = opts.vh || 300, m = { l: 52, r: 70, t: 24, b: 44 };
       const iw = VW - m.l - m.r, ih = VH - m.t - m.b;
-      const svg = el('svg', { viewBox: `0 0 ${VW} ${VH}`, role: 'img', 'aria-label': opts.label }, host);
+      const svg = el('svg', { viewBox: `0 0 ${VW} ${VH}`, role: 'img', 'aria-label': opts.label });
       host.insertBefore(svg, host.firstChild);
       let Y, ticks;
       if (mode === 'log') {
@@ -363,30 +383,27 @@
       T.forEach((t, i) => txt(svg, X(i), m.t + ih + 18, 's ' + t, { 'text-anchor': 'middle' }));
       txt(svg, m.l + iw / 2, VH - 6, 'Segundo de la prueba (fin de ventana)', { 'text-anchor': 'middle' });
       const cross = el('line', { y1: m.t, y2: m.t + ih, stroke: 'var(--ink-3)', 'stroke-width': 1, opacity: 0 }, svg);
-      [L, A].forEach(s => {
+      const ends = [];
+      RUNS.forEach(s => {
         const vals = s[key];
         el('path', { d: vals.map((v, i) => `${i ? 'L' : 'M'}${X(i)},${Y(v)}`).join(''), fill: 'none', stroke: s.color, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, svg);
         vals.forEach((v, i) => el('circle', { cx: X(i), cy: Y(v), r: 4, fill: s.color, stroke: 'var(--surface)', 'stroke-width': 2 }, svg));
         const last = vals[vals.length - 1];
-        txt(svg, X(T.length - 1) + 10, Y(last) + 4, fmt(last) + ' ms', { class: 'val' });
+        ends.push({ y: Y(last), s: fmt(last) + ' ms' });
       });
+      endLabels(svg, X(T.length - 1) + 10, ends);
       T.forEach((t, i) => {
         const hit = el('rect', { x: m.l + band * i, y: m.t, width: band, height: ih, class: 'hit' }, svg);
         wireHit(host, hit, [], (px, py) => {
           cross.setAttribute('x1', X(i)); cross.setAttribute('x2', X(i)); cross.setAttribute('opacity', .5);
-          tip.show(`Segundo ${t}`, [
-            { color: L.color, value: fmt(L[key][i]) + ' ms', label: `local · ${fmt(L.rps[i], 0)} req/s` },
-            { color: A.color, value: fmt(A[key][i]) + ' ms', label: `Atlas · ${fmt(A.rps[i], 0)} req/s` },
-            { value: '×' + fmt(A[key][i] / L[key][i]), label: 'Atlas / local' }
-          ], px, py);
+          tip.show(`Segundo ${t}`, RUNS.map(s => ({ color: s.color, value: fmt(s[key][i]) + ' ms', label: `${s.name} · ${fmt(s.rps[i], 0)} req/s` })), px, py);
         }, tip, () => cross.setAttribute('opacity', 0));
       });
-    }
-    return draw;
+    };
   }
 
   const draw2xx = lineChart('c-2xx', 'p2', {
-    label: 'p99 de respuestas 2xx por ventana, local frente a Atlas', sla: true,
+    label: 'p99 de respuestas 2xx por ventana en las tres corridas', sla: true,
     logMin: 5, logMax: 3000, logTicks: [5, 10, 50, 100, 500, 1000, 3000],
     linMax: 2500, linStep: 500,
   });
@@ -400,36 +417,34 @@
   setScale('log');
 
   lineChart('c-4xx', 'p4', {
-    label: 'p99 de respuestas 4xx por ventana, local frente a Atlas', vw: 480, vh: 260,
+    label: 'p99 de respuestas 4xx por ventana en las tres corridas', vw: 480, vh: 260,
     linMax: 40, linStep: 10,
   })('lin');
 
-  // Dumbbell, log scale
+  // Dumbbell with three dots, log scale
   (function () {
     const host = document.getElementById('c-dumb');
     const keys = Object.keys(L.dist);
-    const VW = 480, VH = 260, m = { l: 70, r: 24, t: 14, b: 34 }, iw = VW - m.l - m.r, ih = VH - m.t - m.b;
-    const svg = el('svg', { viewBox: `0 0 ${VW} ${VH}`, role: 'img', 'aria-label': 'Mediana, p95, p99 y máximo de 2xx, local frente a Atlas, en escala logarítmica' }, host);
-    const lo = 0, hi = Math.log10(3000), X = v => m.l + ((Math.log10(v) - lo) / (hi - lo)) * iw;
+    const VW = 480, VH = 280, m = { l: 70, r: 24, t: 14, b: 34 }, iw = VW - m.l - m.r, ih = VH - m.t - m.b;
+    const svg = el('svg', { viewBox: `0 0 ${VW} ${VH}`, role: 'img', 'aria-label': 'Mediana, p95, p99 y máximo de 2xx en las tres corridas, escala logarítmica' }, host);
+    const hi = Math.log10(3000), X = v => m.l + (Math.log10(v) / hi) * iw;
     [1, 10, 100, 1000].forEach((v, i, a) => {
       el('line', { x1: X(v), x2: X(v), y1: m.t, y2: m.t + ih, stroke: 'var(--grid)', 'stroke-width': 1 }, svg);
       txt(svg, X(v), m.t + ih + 18, num(v) + (i === a.length - 1 ? ' ms' : ''), { 'text-anchor': 'middle' });
     });
     const band = ih / keys.length, tip = makeTip(host);
     keys.forEach((k, i) => {
-      const cy = m.t + band * i + band / 2, a = L.dist[k], b = A.dist[k];
+      const cy = m.t + band * i + band / 2;
+      const vals = RUNS.map(s => s.dist[k]);
       txt(svg, m.l - 12, cy + 4, k, { 'text-anchor': 'end', style: 'fill:var(--ink-2);font-size:12px' });
-      el('line', { x1: X(a), x2: X(b), y1: cy, y2: cy, stroke: 'var(--line)', 'stroke-width': 3, 'stroke-linecap': 'round' }, svg);
-      const d1 = el('circle', { cx: X(a), cy, r: 6, fill: L.color, stroke: 'var(--surface)', 'stroke-width': 2, class: 'mark' }, svg);
-      const d2 = el('circle', { cx: X(b), cy, r: 6, fill: A.color, stroke: 'var(--surface)', 'stroke-width': 2, class: 'mark' }, svg);
-      txt(svg, X(a), cy - 12, fmt(a), { class: 'val', 'text-anchor': 'middle' });
-      txt(svg, X(b), cy - 12, num(Math.round(b)), { class: 'val', 'text-anchor': 'middle' });
+      el('line', { x1: X(Math.min(...vals)), x2: X(Math.max(...vals)), y1: cy, y2: cy, stroke: 'var(--line)', 'stroke-width': 3, 'stroke-linecap': 'round' }, svg);
+      const dots = RUNS.map(s => el('circle', { cx: X(s.dist[k]), cy, r: 6, fill: s.color, stroke: 'var(--surface)', 'stroke-width': 2, class: 'mark' }, svg));
+      // Local and Atlas con watch above the line, Atlas sin watch below, so close values never collide.
+      txt(svg, X(L.dist[k]), cy - 12, fmt(L.dist[k]), { class: 'val', 'text-anchor': 'middle' });
+      txt(svg, X(A.dist[k]), cy - 12, num(Math.round(A.dist[k])), { class: 'val', 'text-anchor': 'middle' });
+      txt(svg, X(B.dist[k]), cy + 22, num(Math.round(B.dist[k])), { class: 'val', 'text-anchor': 'middle' });
       const hit = el('rect', { x: 0, y: m.t + band * i, width: VW, height: band, class: 'hit' }, svg);
-      wireHit(host, hit, [d1, d2], (px, py) => tip.show(k + ' de 2xx', [
-        { color: L.color, value: fmt(a) + ' ms', label: 'local' },
-        { color: A.color, value: fmt(b) + ' ms', label: 'Atlas' },
-        { value: '×' + fmt(b / a, 0), label: 'Atlas / local' }
-      ], px, py), tip);
+      wireHit(host, hit, dots, (px, py) => tip.show(k + ' de 2xx', RUNS.map(s => ({ color: s.color, value: fmt(s.dist[k]) + ' ms', label: s.name })), px, py), tip);
     });
   })();
 
@@ -437,11 +452,12 @@
   (function () {
     const host = document.getElementById('c-vu');
     const rows = [
-      { n: 'Mongo local', ok: 1075, fail: 0 },
-      { n: 'MongoDB Atlas', ok: 953, fail: 122 },
+      { n: 'Local', ok: 1075, fail: 0 },
+      { n: 'Atlas · con watch', ok: 953, fail: 122 },
+      { n: 'Atlas · sin watch', ok: 1075, fail: 0 },
     ];
-    const VW = 900, VH = 120, m = { l: 110, r: 16, t: 8, b: 26 }, iw = VW - m.l - m.r, ih = VH - m.t - m.b;
-    const svg = el('svg', { viewBox: `0 0 ${VW} ${VH}`, role: 'img', 'aria-label': 'Local: 1,075 usuarios completos. Atlas: 953 completos y 122 abortados' }, host);
+    const VW = 900, VH = 160, m = { l: 130, r: 16, t: 8, b: 26 }, iw = VW - m.l - m.r, ih = VH - m.t - m.b;
+    const svg = el('svg', { viewBox: `0 0 ${VW} ${VH}`, role: 'img', 'aria-label': 'Local: 1,075 completos. Atlas con watch: 953 completos y 122 abortados. Atlas sin watch: 1,075 completos' }, host);
     const X = f => m.l + f * iw;
     [0, .25, .5, .75, 1].forEach(f => txt(svg, X(f), VH - 6, Math.round(f * 100) + ' %', { 'text-anchor': f === 1 ? 'end' : (f === 0 ? 'start' : 'middle') }));
     const band = ih / rows.length, bh = 24, tip = makeTip(host);
@@ -453,8 +469,7 @@
       txt(svg, X(0) + 10, y + bh / 2 + 4, num(r.ok) + ' completos', { style: 'fill:#fff;font-weight:600;font-size:12px' });
       const marks = [a];
       if (r.fail) {
-        const b = el('rect', { x: X(0) + wOk, y, width: (r.fail / tot) * iw, height: bh, rx: 4, fill: 'var(--err)', class: 'mark' }, svg);
-        marks.push(b);
+        marks.push(el('rect', { x: X(0) + wOk, y, width: (r.fail / tot) * iw, height: bh, rx: 4, fill: 'var(--err)', class: 'mark' }, svg));
         txt(svg, X(1) - 8, y + bh / 2 + 4, num(r.fail), { style: 'fill:#fff;font-weight:600;font-size:12px', 'text-anchor': 'end' });
       }
       const hit = el('rect', { x: 0, y: m.t + band * i, width: VW, height: band, class: 'hit' }, svg);
@@ -466,36 +481,36 @@
     });
   })();
 
-  // Table
+  // Table: [métrica, local, atlas watch, atlas sin watch, sla?]
   const rows = [
-    ['Solicitudes enviadas', '2,150', '2,066'],
-    ['Respuestas recibidas', '2,150', '1,944'],
-    ['201 Created', '1,075', '991'],
-    ['400 Bad Request', '1,075', '953'],
-    ['Errores de conexión', '0', '122'],
-    ['Usuarios virtuales fallidos', '0 %', '11.3 %', 'err'],
-    ['Latencia mediana global', '2 ms', '153 ms'],
-    ['Latencia p95 global', '7.9 ms', '1,249.1 ms'],
-    ['Latencia p99 global', '16 ms', '1,495.5 ms', 'p99'],
-    ['Latencia máxima', '46 ms', '2,348 ms'],
-    ['2xx media / mediana', '4.7 / 4 ms', '387.6 / 159.2 ms'],
-    ['2xx p99', '21.1 ms', '1,525.7 ms'],
-    ['4xx media / mediana', '0.8 / 1 ms', '1.2 / 1 ms'],
-    ['4xx p99', '6 ms', '10.1 ms'],
-    ['Duración de la sesión (mediana)', '1,002 ms', '1,176 ms'],
-    ['SLA p99 < 200 ms', 'Cumple', 'Incumple', 'sla'],
-    ['SLA error < 1 %', 'Cumple', 'Incumple', 'sla'],
+    ['Solicitudes enviadas', '2,150', '2,066', '2,150'],
+    ['Respuestas recibidas', '2,150', '1,944', '2,150'],
+    ['201 Created', '1,075', '991', '1,075'],
+    ['400 Bad Request', '1,075', '953', '1,075'],
+    ['Errores de conexión', '0', '122', '0'],
+    ['Usuarios virtuales fallidos', '0 %', '11.3 %', '0 %', [1, 0, 1]],
+    ['Latencia mediana global', '2 ms', '153 ms', '22 ms'],
+    ['Latencia p95 global', '7.9 ms', '1,249.1 ms', '162.4 ms'],
+    ['Latencia p99 global', '16 ms', '1,495.5 ms', '175.9 ms', [1, 0, 1]],
+    ['Latencia máxima', '46 ms', '2,348 ms', '1,043 ms'],
+    ['2xx media / mediana', '4.7 / 4 ms', '387.6 / 159.2 ms', '165.2 / 156 ms'],
+    ['2xx p95', '10.9 ms', '1,408.4 ms', '169 ms'],
+    ['2xx p99', '21.1 ms', '1,525.7 ms', '314.2 ms'],
+    ['4xx media / mediana', '0.8 / 1 ms', '1.2 / 1 ms', '0.9 / 1 ms'],
+    ['4xx p99', '6 ms', '10.1 ms', '8.9 ms'],
+    ['Duración de la sesión (mediana)', '1,002 ms', '1,176 ms', '1,153 ms'],
+    ['SLA p99 < 200 ms', 'Cumple', 'Incumple', 'Cumple', [1, 0, 1]],
+    ['SLA error < 1 %', 'Cumple', 'Incumple', 'Cumple', [1, 0, 1]],
   ];
   const tbl = document.getElementById('tbl');
   const thr = tbl.createTHead().insertRow();
-  ['Métrica', 'Mongo local', 'MongoDB Atlas'].forEach(h => { const th = document.createElement('th'); th.textContent = h; thr.appendChild(th); });
+  ['Métrica', 'Local', 'Atlas · con watch', 'Atlas · sin watch'].forEach(h => { const th = document.createElement('th'); th.textContent = h; thr.appendChild(th); });
   const tb = tbl.createTBody();
   rows.forEach(r => {
     const tr = tb.insertRow();
-    r.slice(0, 3).forEach((v, j) => {
+    r.slice(0, 4).forEach((v, j) => {
       const c = tr.insertCell(); c.textContent = v;
-      if (r[3] && j === 1) c.className = 'ok';
-      if (r[3] && j === 2) c.className = 'bad';
+      if (r[4] && j > 0) c.className = r[4][j - 1] ? 'ok' : 'bad';
     });
   });
 })();
