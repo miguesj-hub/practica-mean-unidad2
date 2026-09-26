@@ -1,0 +1,12 @@
+{
+  // Compilación de producción: PM2 en modo cluster necesita JavaScript plano.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "declaration": false,
+    "declarationMap": false
+  },
+  "include": ["src"],
+  "exclude": ["src/**/*.spec.ts"]
+}

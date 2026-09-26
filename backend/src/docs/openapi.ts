@@ -90,7 +90,7 @@ export const openApiDocument = {
       '**Validación perimetral:** los esquemas de esta página se generan desde los DTO de Zod ' +
       'que rechazan la petición antes de que el controlador se ejecute.'
   },
-  servers: [{ url: 'http://127.0.0.1:3000/api/v1', description: 'Entorno local' }],
+  servers: [{ url: '/api/v1', description: 'Mismo origen (local o detrás de Nginx)' }],
   // Declaración explícita: ningún endpoint exige autenticación. La práctica
   // no contempla una capa de seguridad; el arreglo vacío lo documenta en
   // vez de dejarlo al supuesto del lector.

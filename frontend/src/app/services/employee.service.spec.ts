@@ -5,7 +5,7 @@ import { firstValueFrom } from 'rxjs';
 import { EmployeeService } from './employee.service';
 import { Employee, EmployeeDraft } from '../models/employee.model';
 
-const API = 'http://127.0.0.1:3000/api/v1/empleados';
+const API = '/api/v1/empleados';
 
 const empleado = (id: string, nombre: string, sueldo = 1000): Employee => ({
   id,

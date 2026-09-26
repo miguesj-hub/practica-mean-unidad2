@@ -13,7 +13,8 @@ import {
 @Injectable({ providedIn: 'root' })
 export class EmployeeService {
   private readonly http = inject(HttpClient);
-  private readonly api = 'http://127.0.0.1:3000/api/v1/empleados';
+  // Ruta relativa: en producción Nginx la envía al backend y en desarrollo lo hace proxy.conf.json.
+  private readonly api = '/api/v1/empleados';
 
   private readonly employeesSubject = new BehaviorSubject<Employee[]>([]);
   private readonly draftSubject = new BehaviorSubject<EmployeeDraft>(nuevoBorrador());
