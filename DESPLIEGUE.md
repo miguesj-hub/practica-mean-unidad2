@@ -294,6 +294,11 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
+    # La raíz del dominio de la API lleva a la documentación
+    location = / {
+        return 302 /api/docs/;
+    }
+
     # El frontend vive en Azure: aquí no se sirve nada más
     location / {
         return 404;
@@ -305,7 +310,8 @@ server {
 |---|---|
 | `upstream backend_empleados` | Destino del proxy (cluster PM2 en `127.0.0.1:3000`) con conexiones reutilizables. Para balancear entre más servidores bastaría con añadir líneas `server`. |
 | `location /api/` | La API (`/api/v1/empleados`) y Swagger (`/api/docs`) van a Express. |
-| `location /` | 404: la EC2 ya no sirve el frontend. |
+| `location = /` | La raíz del dominio redirige a Swagger (`/api/docs/`). |
+| `location /` | Cualquier otra ruta da 404: la EC2 ya no sirve el frontend. |
 | Cabeceras `X-*` | Pasan al backend la IP real del cliente y el protocolo original. |
 
 ```bash
@@ -669,7 +675,7 @@ npx artillery run --target https://empleados-miguel.duckdns.org stress-test.yml
 | Log: `bad auth : authentication failed` | Usuario o contraseña incorrectos en `MONGO_URI`. | Corrige `shared/.env` y `pm2 reload gestion-empleados`. |
 | `~/.pm2/pm2.log`: `node: .env: not found` y estado `errored` | Falta `shared/.env`, falta el enlace, o `node_args` usa una ruta relativa (en modo cluster se resuelve desde el directorio del daemon). | `ls -l /var/www/empleados/current/backend/.env`; `node_args` debe llevar ruta absoluta. |
 | `npm ERR! Missing script: "build"` en el servidor | El servidor tiene una versión del repo anterior a los cambios, o se ejecutan a mano comandos pensados para la Mac. | Haz push y usa `pm2 deploy`; no compiles a mano en el servidor. |
-| `http://18.116.22.239/` devuelve 404 | Es lo esperado: la EC2 solo expone `/api` por el dominio. | Usa `https://empleados-miguel.duckdns.org/api/...`. |
+| `http://18.116.22.239/` o una ruta fuera de `/api` devuelve 404 | Es lo esperado: la EC2 solo expone `/api` por el dominio (la raíz `https://empleados-miguel.duckdns.org/` redirige a Swagger). | Usa `https://empleados-miguel.duckdns.org/api/...`. |
 | `dig` devuelve la IP de tu casa | DuckDNS guardó la IP del navegador. | `curl "https://www.duckdns.org/update?domains=empleados-miguel&token=...&ip=18.116.22.239"`. |
 | Certbot: `Timeout during connect` / `unauthorized` | El DNS aún no apunta a la EC2 o el puerto 80 está cerrado. | `dig @ns5.duckdns.org` y regla HTTP 80 en el Security Group. |
 | Azure: `RequestDisallowedByAzure` | Región no permitida en la suscripción de estudiante. | Fase 8.1, nota de regiones. |
