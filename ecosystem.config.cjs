@@ -42,7 +42,7 @@ module.exports = {
         'pm2 reload ecosystem.config.cjs --env production',
         'pm2 save'
       ].join(' && '),
-      ssh_options: 'IdentityFile=~/.ssh/TU-LLAVE-AWS.pem' // la .pem privada, no una .pub
+      ssh_options: 'IdentityFile=~/.ssh/id_ed25519' // llave privada de la Mac, autorizada en el servidor
     }
   }
 };
