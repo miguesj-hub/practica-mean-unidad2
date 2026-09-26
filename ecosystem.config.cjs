@@ -10,7 +10,9 @@ module.exports = {
       name: 'gestion-empleados',
       cwd: path.join(__dirname, 'backend'),
       script: 'dist/index.js',
-      node_args: '--env-file=.env',
+      // Ruta absoluta: en modo cluster el daemon de PM2 crea los workers desde su
+      // propio directorio, así que un '--env-file=.env' relativo no se encuentra.
+      node_args: `--env-file=${path.join(__dirname, 'backend', '.env')}`,
       instances: 'max', // Modo cluster: una réplica por vCPU
       exec_mode: 'cluster',
       env_production: {

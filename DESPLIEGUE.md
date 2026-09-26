@@ -378,7 +378,8 @@ module.exports = {
       name: 'gestion-empleados',
       cwd: path.join(__dirname, 'backend'),
       script: 'dist/index.js',
-      node_args: '--env-file=.env',   // carga MONGO_URI desde backend/.env → shared/.env
+      // ruta absoluta: los workers del cluster no heredan el cwd de la app
+      node_args: `--env-file=${path.join(__dirname, 'backend', '.env')}`,
       instances: 'max',               // modo cluster: una réplica por vCPU
       exec_mode: 'cluster',
       env_production: { NODE_ENV: 'production', PORT: 3000 },
@@ -670,10 +671,10 @@ npx artillery run --target http://18.116.22.239 stress-test.yml
 | Síntoma | Causa probable | Cómo resolverlo |
 |---|---|---|
 | **502 Bad Gateway** en `/` y en `/api` | Nginx aún tiene la configuración del PDF (todo va al 3000) y el backend no corre. | Aplica la Fase 4 con `deploy/nginx.conf` y completa la Fase 5. |
-| **502** solo en `/api/...` | El backend no está `online` o se cae al arrancar. | `pm2 list` y `pm2 logs gestion-empleados --lines 50`. |
+| **502** solo en `/api/...` | El backend no está `online` o se cae al arrancar. | `pm2 list`, `pm2 logs gestion-empleados --lines 50` y, si no hay logs de la app, `tail -n 30 ~/.pm2/pm2.log`. |
 | Logs: `❌ Error crítico al conectar a la base de datos` / `MongoServerSelectionError` | Atlas no permite la IP de la EC2. | Fase 1.3: añade `18.116.22.239/32` en Network Access. |
 | Logs: `bad auth : authentication failed` | Usuario o contraseña incorrectos en `MONGO_URI`. | Corrige `shared/.env` (codifica los caracteres especiales) y `pm2 reload gestion-empleados`. |
-| Logs: `node: .env: not found` | Falta `shared/.env` o el enlace simbólico. | `ls -l /var/www/empleados/current/backend/.env` y crea el archivo (Fase 3.3). |
+| `~/.pm2/pm2.log`: `node: .env: not found` y estado `errored` | Falta `shared/.env`, falta el enlace simbólico o `node_args` usa una ruta relativa (en modo cluster se resuelve desde el directorio del daemon). | `ls -l /var/www/empleados/current/backend/.env`; `node_args` debe llevar ruta absoluta, como en el ecosistema del repo. |
 | **404/500** en `/` pero `/api` funciona | No existe el build de Angular. | `ls /var/www/empleados/current/frontend/dist/frontend/browser/`; revisa la salida del deploy. |
 | **403 Forbidden** en `/` | Nginx (`www-data`) no puede leer la carpeta. | `chmod 755 /var/www /var/www/empleados` y `namei -l /var/www/empleados/current/frontend/dist/frontend/browser/index.html`. |
 | El deploy se corta con `Killed` durante `ng build` | Falta memoria. | Fase 2.5 (swap). |
